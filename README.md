@@ -91,13 +91,34 @@ is present — no code changes needed:
 3. Restart `npm run dev`. The login screen will show "Cloud sync on," accounts are
    real Firebase Auth users, and progress + streaks sync across devices.
 
-Firestore data layout (lock down with security rules so each user only reads/writes
-their own `users/{uid}/**`):
+Firestore data layout:
 
 ```
 users/{uid}/progress/{lessonId}   -> LessonProgress
 users/{uid}/meta/stats            -> UserStats (streaks)
 ```
+
+Security rules are in `firestore.rules` and restrict every user to their own
+`users/{uid}/**`.
+
+## Deploying to Firebase Hosting
+
+The Firebase CLI files are scaffolded (`firebase.json`, `.firebaserc`,
+`firestore.rules`, `firestore.indexes.json`). To deploy:
+
+1. Install the CLI and sign in: `npm i -g firebase-tools && firebase login`
+2. Put your project id in `.firebaserc` (replace `REPLACE_WITH_YOUR_FIREBASE_PROJECT_ID`),
+   or run `firebase use --add`.
+3. Build and deploy:
+   ```bash
+   npm run build
+   firebase deploy                 # hosting + Firestore rules
+   # or target one: firebase deploy --only hosting
+   #                firebase deploy --only firestore:rules
+   ```
+
+`firebase.json` serves the Vite `dist/` build, rewrites all routes to
+`index.html`, and long-caches hashed assets.
 
 ## Architecture
 

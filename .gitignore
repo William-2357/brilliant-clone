@@ -13,6 +13,17 @@ dist-ssr
 *.local
 .agents/skills/*
 
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
