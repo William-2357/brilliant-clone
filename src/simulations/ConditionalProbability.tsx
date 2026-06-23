@@ -11,6 +11,8 @@ const SUITS = ['\u2660', '\u2665', '\u2666', '\u2663'];
  *   0 = P(first card is an ace)
  *   1 = P(both of two cards are aces)
  *   2 = P(second is an ace | first was an ace)  -- only ace-first trials count
+ *   3 = P(first card is a face card: J/Q/K)
+ *   4 = P(second is an ace | first was NOT an ace) -- only non-ace-first trials count
  * `config.scaleMax` sets the bar's full-scale value so small probabilities read well.
  */
 export default function ConditionalProbability({ config, mode, runSignal, onSettled }: SimulationProps) {
@@ -23,6 +25,7 @@ export default function ConditionalProbability({ config, mode, runSignal, onSett
   const stateRef = useRef({ num: 0, den: 0, processed: 0, total: 0, last: [-1, -1] as number[] });
 
   const isAce = (card: number) => card % 13 === 0;
+  const isFace = (card: number) => card % 13 >= 10;
 
   function drawTrial(): { cards: number[]; num: number; den: number } {
     const a = Math.floor(Math.random() * 52);
@@ -31,8 +34,16 @@ export default function ConditionalProbability({ config, mode, runSignal, onSett
     if (metric === 0) {
       return { cards: [a], num: isAce(a) ? 1 : 0, den: 1 };
     }
+    if (metric === 3) {
+      return { cards: [a], num: isFace(a) ? 1 : 0, den: 1 };
+    }
     if (metric === 1) {
       return { cards: [a, b], num: isAce(a) && isAce(b) ? 1 : 0, den: 1 };
+    }
+    if (metric === 4) {
+      // condition on the first card NOT being an ace
+      if (isAce(a)) return { cards: [a, b], num: 0, den: 0 };
+      return { cards: [a, b], num: isAce(b) ? 1 : 0, den: 1 };
     }
     // metric 2: condition on first being an ace
     if (!isAce(a)) return { cards: [a, b], num: 0, den: 0 };
@@ -57,7 +68,8 @@ export default function ConditionalProbability({ config, mode, runSignal, onSett
     ctx.clearRect(0, 0, width, height);
 
     // Cards
-    const show = metric === 0 ? 1 : 2;
+    const highlight = (card: number) => (metric === 3 ? isFace(card) : isAce(card));
+    const show = metric === 0 || metric === 3 ? 1 : 2;
     const cw = 56;
     const ch = 78;
     const gap = 14;
@@ -68,9 +80,9 @@ export default function ConditionalProbability({ config, mode, runSignal, onSett
       const x = startX + i * (cw + gap);
       const card = s.last[i] ?? -1;
       ctx.fillStyle = '#161226';
-      ctx.strokeStyle = card >= 0 && isAce(card) ? cyan : border;
-      ctx.lineWidth = card >= 0 && isAce(card) ? 2 : 1;
-      if (card >= 0 && isAce(card)) {
+      ctx.strokeStyle = card >= 0 && highlight(card) ? cyan : border;
+      ctx.lineWidth = card >= 0 && highlight(card) ? 2 : 1;
+      if (card >= 0 && highlight(card)) {
         ctx.shadowColor = cyan;
         ctx.shadowBlur = 14;
       }

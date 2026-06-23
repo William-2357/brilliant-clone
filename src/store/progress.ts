@@ -1,4 +1,4 @@
-import type { Lesson, LessonProgress, LessonState } from '../types/lesson';
+import type { Lesson, LessonProgress, LessonState, ProblemResult } from '../types/lesson';
 import type { ProgressMap, UserStats } from '../lib/storage';
 import { gradableSteps } from '../content/lessons';
 
@@ -43,20 +43,59 @@ export function recordActiveDay(stats: UserStats, now: number): UserStats {
 export function initialProgress(firstStepId: string): LessonProgress {
   return {
     mastered: false,
+    cleared: false,
     attempts: 0,
     wrongStreak: 0,
     currentStepId: firstStepId,
+    results: {},
     completedProblemIds: [],
     completedAt: null,
     lastVisited: null,
   };
 }
 
-/** A lesson is mastered when every gradable problem has been answered correctly. */
+/**
+ * Read a question's stored color. Falls back to treating legacy
+ * `completedProblemIds` entries (from the old infinite-retry model) as green.
+ */
+export function problemResult(
+  progress: LessonProgress | undefined,
+  stepId: string,
+): ProblemResult | undefined {
+  if (!progress) return undefined;
+  const direct = progress.results?.[stepId];
+  if (direct) return direct;
+  if (progress.completedProblemIds?.includes(stepId)) return 'green';
+  return undefined;
+}
+
+/** A lesson is cleared when every gradable question is green or yellow (no reds). */
+export function computeCleared(lesson: Lesson, progress: LessonProgress): boolean {
+  const problems = gradableSteps(lesson);
+  if (problems.length === 0) return false;
+  return problems.every((p) => {
+    const r = problemResult(progress, p.id);
+    return r === 'green' || r === 'yellow';
+  });
+}
+
+/** A lesson is mastered when every gradable question is green (perfect run). */
 export function computeMastered(lesson: Lesson, progress: LessonProgress): boolean {
   const problems = gradableSteps(lesson);
   if (problems.length === 0) return false;
-  return problems.every((p) => progress.completedProblemIds.includes(p.id));
+  return problems.every((p) => problemResult(progress, p.id) === 'green');
+}
+
+/** True once every gradable question has a recorded result (green/yellow/red). */
+export function allQuestionsResolved(lesson: Lesson, progress: LessonProgress | undefined): boolean {
+  const problems = gradableSteps(lesson);
+  if (problems.length === 0) return false;
+  return problems.every((p) => problemResult(progress, p.id) !== undefined);
+}
+
+/** Cleared, tolerant of legacy progress where only `mastered` was stored. */
+export function isCleared(p: LessonProgress | undefined): boolean {
+  return p?.cleared === true || p?.mastered === true;
 }
 
 export function lessonState(
@@ -65,14 +104,15 @@ export function lessonState(
   unlockAll = false,
 ): LessonState {
   if (lesson.status === 'coming-soon') return 'locked';
-  const prereqMastered =
+  const prereqCleared =
     unlockAll ||
     lesson.prerequisiteId === null ||
-    all[lesson.prerequisiteId]?.mastered === true;
-  if (!prereqMastered) return 'locked';
+    isCleared(all[lesson.prerequisiteId]);
+  if (!prereqCleared) return 'locked';
   const p = all[lesson.id];
   if (p?.mastered) return 'mastered';
-  if (p && (p.attempts > 0 || p.completedProblemIds.length > 0)) return 'in-progress';
+  if (p?.cleared) return 'cleared';
+  if (p && (p.attempts > 0 || Object.keys(p.results ?? {}).length > 0)) return 'in-progress';
   return 'available';
 }
 
@@ -80,12 +120,65 @@ export function isLessonUnlocked(lesson: Lesson, all: ProgressMap, unlockAll = f
   return lessonState(lesson, all, unlockAll) !== 'locked';
 }
 
-/** First non-mastered, unlocked, built lesson — the sensible "next" recommendation. */
+export interface CourseStats {
+  lessonsMastered: number;
+  lessonsBuilt: number;
+  problemsSolved: number;
+  totalProblems: number;
+  questionsAnswered: number;
+  masteryFraction: number;
+}
+
+/** Roll per-lesson progress up into the account-level numbers shown in the UI. */
+export function courseStats(lessons: Lesson[], all: ProgressMap): CourseStats {
+  let lessonsMastered = 0;
+  let lessonsBuilt = 0;
+  let problemsSolved = 0;
+  let totalProblems = 0;
+  let questionsAnswered = 0;
+  for (const lesson of lessons) {
+    if (lesson.status !== 'built') continue;
+    lessonsBuilt += 1;
+    const problems = gradableSteps(lesson);
+    totalProblems += problems.length;
+    const p = all[lesson.id];
+    if (!p) continue;
+    if (p.mastered) lessonsMastered += 1;
+    problemsSolved += problems.filter((s) => {
+      const r = problemResult(p, s.id);
+      return r === 'green' || r === 'yellow';
+    }).length;
+    questionsAnswered += p.attempts;
+  }
+  return {
+    lessonsMastered,
+    lessonsBuilt,
+    problemsSolved,
+    totalProblems,
+    questionsAnswered,
+    masteryFraction: totalProblems === 0 ? 0 : problemsSolved / totalProblems,
+  };
+}
+
+/** Fraction of a single lesson's gradable questions that are green or yellow (0..1). */
+export function lessonProgressFraction(lesson: Lesson, all: ProgressMap): number {
+  const problems = gradableSteps(lesson);
+  if (problems.length === 0) return 0;
+  const p = all[lesson.id];
+  if (!p) return 0;
+  const solved = problems.filter((s) => {
+    const r = problemResult(p, s.id);
+    return r === 'green' || r === 'yellow';
+  }).length;
+  return solved / problems.length;
+}
+
+/** First un-cleared, unlocked, built lesson — the sensible "next" recommendation. */
 export function recommendNext(lessons: Lesson[], all: ProgressMap): Lesson | null {
   for (const lesson of lessons) {
     if (lesson.status !== 'built') continue;
     if (lessonState(lesson, all) === 'locked') continue;
-    if (!all[lesson.id]?.mastered) return lesson;
+    if (!isCleared(all[lesson.id])) return lesson;
   }
   return null;
 }

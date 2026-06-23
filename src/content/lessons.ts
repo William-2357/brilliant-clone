@@ -22,6 +22,15 @@ const prizeWheel = [
   { value: 5, p: 0.3 },
   { value: 10, p: 0.2 },
 ];
+const coinGame = [
+  { value: 2, p: 0.5 },
+  { value: 0, p: 0.5 },
+];
+const mixWheel = [
+  { value: 0, p: 0.7 },
+  { value: 5, p: 0.2 },
+  { value: 20, p: 0.1 },
+];
 
 /**
  * The course. Lessons 1-3 are fully built and playable. Lessons 4-7 ship as
@@ -44,6 +53,27 @@ export const lessons: Lesson[] = [
         body: 'Probability is what happens in the long run. Drag the slider to flip a coin many times and watch the fraction of heads settle toward one half. A few flips are wild and lopsided; thousands of flips are remarkably steady.',
         simulation: 'coinFlip',
         simConfig: { flips: 100, p: 0.5 },
+        lecture: [
+          {
+            heading: 'The frequentist definition',
+            text: 'The probability of an event is the value its relative frequency approaches as the number of independent trials grows without bound. If an event $A$ occurs $N_A$ times in $N$ trials, we define $P(A)$ as the limit of $N_A / N$ as $N \\to \\infty$. For a fair coin, that limit is exactly $1/2$.',
+            formula: 'P(A) = \\lim_{N \\to \\infty} \\frac{N_A}{N}',
+          },
+          {
+            heading: 'The Law of Large Numbers',
+            text: 'Model each flip as an indicator $X_i$ that equals $1$ for heads and $0$ for tails, with mean $E[X_i] = p$. The running fraction of heads is the sample mean of these variables. The Law of Large Numbers guarantees this average converges to $p$: for any tolerance $\\varepsilon > 0$, the probability that the average sits more than $\\varepsilon$ from $p$ tends to zero.',
+            formula: '\\bar{X}_N = \\frac{1}{N}\\sum_{i=1}^{N} X_i \\;\\longrightarrow\\; p',
+          },
+          {
+            heading: 'How fast does it settle?',
+            text: 'Convergence is gradual, not instant. The standard deviation of the running average is $\\sqrt{p(1-p)/N}$, which shrinks like $1/\\sqrt{N}$. That is why a handful of flips look wildly lopsided while thousands look smooth — and why halving the typical error requires four times as many trials.',
+            formula: '\\operatorname{SD}(\\bar{X}_N) = \\sqrt{\\dfrac{p(1-p)}{N}}',
+          },
+          {
+            heading: 'No memory: the gambler’s fallacy',
+            text: 'Each flip is independent, so conditioning on the past changes nothing: $P(\\text{heads} \\mid \\text{history}) = p$. A streak of heads does not make tails “due.” The long-run average is restored by dilution across many future trials, never by a corrective force acting on the next flip.',
+          },
+        ],
       },
       {
         id: 'l1-s2',
@@ -93,6 +123,38 @@ export const lessons: Lesson[] = [
           incorrect: 'A fair coin does not correct for past streaks. The next 1000 flips still converge to 0.5, regardless of what just happened.',
         },
       },
+      {
+        id: 'l1-s5',
+        type: 'problem',
+        title: 'A coin that mostly tails',
+        body: 'This coin is biased the other way: it lands heads only 30% of the time on each flip.',
+        simulation: 'coinFlip',
+        simConfig: { flips: 1000, p: 0.3 },
+        question: 'Over 1000 flips, what fraction will be heads? (decimal)',
+        answer: longRunFrequency(0.3),
+        tolerance: 0.05,
+        unit: 'fraction',
+        feedback: {
+          correct: 'Right — the frequency homes in on the coin’s true bias, 0.30.',
+          incorrect: 'Each flip is 30% heads, so over many flips about 0.30 of them land heads.',
+        },
+      },
+      {
+        id: 'l1-s6',
+        type: 'problem',
+        title: 'Almost always heads',
+        body: 'A nearly two-headed coin lands heads 90% of the time on each flip.',
+        simulation: 'coinFlip',
+        simConfig: { flips: 1000, p: 0.9 },
+        question: 'What fraction of 1000 flips will be heads? (decimal)',
+        answer: longRunFrequency(0.9),
+        tolerance: 0.05,
+        unit: 'fraction',
+        feedback: {
+          correct: 'Exactly — the long-run fraction equals the bias, 0.90.',
+          incorrect: 'The fraction converges to the true probability of heads, which is 0.90.',
+        },
+      },
     ],
   },
   {
@@ -110,6 +172,27 @@ export const lessons: Lesson[] = [
         body: 'Each die is independent — one roll never affects the other. But when you add two dice, the sums are not equally likely. Roll many times and watch the histogram of sums build into a triangle.',
         simulation: 'diceRoll',
         simConfig: { rolls: 100 },
+        lecture: [
+          {
+            heading: 'Independent events multiply',
+            text: 'Two events are independent when the occurrence of one tells you nothing about the other. For independent events, the probability that both occur is the product of their probabilities. Each die is a uniform draw from $\\{1,\\dots,6\\}$, and one die never influences the other.',
+            formula: 'P(A \\cap B) = P(A)\\,P(B)',
+          },
+          {
+            heading: 'The sample space of two dice',
+            text: 'Rolling two dice yields $36$ equally likely ordered outcomes $(a, b)$. When outcomes are equally likely, the probability of an event is just the count of favorable outcomes over the total — the classical (Laplace) definition of probability.',
+            formula: 'P(E) = \\frac{|E|}{|\\Omega|} = \\frac{\\#\\,\\text{favorable}}{36}',
+          },
+          {
+            heading: 'Why the sums are not uniform',
+            text: 'Although every ordered pair is equally likely, their sums are not. The number of ways to make each sum forms a triangle: just one way to make $2$ or $12$, but six ways to make $7$. The distribution of the sum is the convolution of two uniform distributions.',
+            formula: 'P(S = s) = \\frac{\\#\\,\\{(a,b) : a+b = s\\}}{36}',
+          },
+          {
+            heading: 'The peak at seven',
+            text: 'Seven is reachable from every face of the first die paired with a complementary face of the second (1+6, 2+5, 3+4, and their reverses). More decompositions mean higher probability, so 7 sits at the peak with probability 6/36 = 1/6.',
+          },
+        ],
       },
       {
         id: 'l2-s2',
@@ -159,6 +242,38 @@ export const lessons: Lesson[] = [
           incorrect: 'Only (1,1) makes a 2 — one way out of 36, so 1/36 ≈ 0.028.',
         },
       },
+      {
+        id: 'l2-s5',
+        type: 'problem',
+        title: 'Boxcars',
+        body: 'A sum of 12 requires both dice to show 6.',
+        simulation: 'diceRoll',
+        simConfig: { rolls: 2000 },
+        question: 'What is the probability of rolling a sum of 12? (decimal)',
+        answer: dice[12],
+        tolerance: 0.02,
+        unit: 'probability',
+        feedback: {
+          correct: 'Right — only (6,6) makes 12, so 1/36 ≈ 0.028, just like snake eyes.',
+          incorrect: 'Only one outcome (6,6) gives a 12: 1/36 ≈ 0.028.',
+        },
+      },
+      {
+        id: 'l2-s6',
+        type: 'problem',
+        title: 'Rolling a ten',
+        body: 'A sum of 10 can be made by (4,6), (5,5), and (6,4).',
+        simulation: 'diceRoll',
+        simConfig: { rolls: 2000 },
+        question: 'What is the probability of rolling a sum of 10? (decimal)',
+        answer: dice[10],
+        tolerance: 0.02,
+        unit: 'probability',
+        feedback: {
+          correct: 'Yes — 3 ways out of 36 is 1/12 ≈ 0.083.',
+          incorrect: 'There are 3 ways to make 10 out of 36 outcomes: 3/36 = 1/12 ≈ 0.083.',
+        },
+      },
     ],
   },
   {
@@ -176,6 +291,27 @@ export const lessons: Lesson[] = [
         body: 'Each ball bounces left or right at every peg — a coin flip at each row. Independent random choices, stacked together, pile up into a bell-shaped curve. Drop some balls and watch the bins fill.',
         simulation: 'galtonBoard',
         simConfig: { rows: 12, balls: 200 },
+        lecture: [
+          {
+            heading: 'A machine that builds a binomial',
+            text: 'At each of the $n$ rows, a ball bounces left or right with probability $1/2$ — an independent Bernoulli trial. The bin it ends in equals its number of right-bounces, so the bin index $K$ follows a $\\text{Binomial}(n, 1/2)$ distribution.',
+            formula: 'P(K = k) = \\binom{n}{k}\\left(\\tfrac{1}{2}\\right)^{n}',
+          },
+          {
+            heading: 'Counting paths',
+            text: 'The binomial coefficient $\\binom{n}{k}$ counts how many distinct left/right paths arrive at bin $k$. The central bins are reachable by exponentially many paths, while each extreme bin has exactly one path — all-left or all-right — which is why the edges stay nearly empty.',
+            formula: '\\binom{n}{k} = \\frac{n!}{k!\\,(n-k)!}',
+          },
+          {
+            heading: 'The Central Limit Theorem',
+            text: 'A bin count is a sum of many independent shocks. The Central Limit Theorem says that, once standardized, such sums converge to the standard normal distribution as $n$ grows. This is why independent randomness, stacked up, reliably yields the bell curve — it is a universal limit, not a coincidence of this device.',
+            formula: '\\frac{K - np}{\\sqrt{np(1-p)}} \\;\\longrightarrow\\; \\mathcal{N}(0, 1)',
+          },
+          {
+            heading: 'Center and spread',
+            text: 'For $n$ rows with $p = 1/2$, the mean bin is $np = n/2$ and the variance is $np(1-p) = n/4$, so the spread grows only like $\\sqrt{n}/2$. The bulk of outcomes lies within a few standard deviations of center, and the two outermost bins together hold only $2\\cdot(1/2)^n$ of the probability.',
+          },
+        ],
       },
       {
         id: 'l3-s2',
@@ -225,6 +361,38 @@ export const lessons: Lesson[] = [
           incorrect: 'The edges are nearly empty — about 0.0005. Hitting all-left or all-right twelve times running almost never happens.',
         },
       },
+      {
+        id: 'l3-s5',
+        type: 'problem',
+        title: 'The wider middle',
+        body: 'Widen the window to the five central bins of the 13.',
+        simulation: 'galtonBoard',
+        simConfig: { rows: 12, balls: 1000 },
+        question: 'What fraction of balls land in the five central bins? (decimal)',
+        answer: galtonCenterFraction(12, 5),
+        tolerance: 0.05,
+        unit: 'fraction',
+        feedback: {
+          correct: 'Right — about 0.85. Widen the window a little and you capture the vast majority.',
+          incorrect: 'The five central bins hold roughly 0.85 of the balls — almost everything.',
+        },
+      },
+      {
+        id: 'l3-s6',
+        type: 'problem',
+        title: 'One step off-center',
+        body: 'Consider a single bin one place from the middle (7 bounces one way, 5 the other).',
+        simulation: 'galtonBoard',
+        simConfig: { rows: 12, balls: 1000 },
+        question: 'What fraction of balls land in that one bin? (decimal)',
+        answer: binomialPmf(12, 5, 0.5),
+        tolerance: 0.03,
+        unit: 'fraction',
+        feedback: {
+          correct: 'Yes — about 0.19, just below the center bin’s share.',
+          incorrect: 'A bin one step off-center gets about 0.19 of the balls — close to, but less than, the peak.',
+        },
+      },
     ],
   },
   {
@@ -242,6 +410,28 @@ export const lessons: Lesson[] = [
         body: 'How many people need to be in a room before two of them probably share a birthday? The answer is shockingly small. Drag the slider and simulate rooms — the curve climbs much faster than intuition suggests, because every new person creates many new pairs that could match.',
         simulation: 'birthday',
         simConfig: { people: 23 },
+        lecture: [
+          {
+            heading: 'Count the complement',
+            text: 'Directly counting the ways that at least two people share a birthday is messy. It is far easier to compute the probability that everyone’s birthday is different and subtract from one.',
+            formula: 'P(\\text{match}) = 1 - P(\\text{no match})',
+          },
+          {
+            heading: 'The product formula',
+            text: 'Assume $365$ equally likely birthdays. The first person is free; the second must avoid $1$ day, the third must avoid $2$, and so on. Multiplying these shrinking factors gives the no-match probability, and one minus it gives the chance of a collision.',
+            formula: 'P(\\text{match}) = 1 - \\prod_{k=1}^{n-1}\\left(1 - \\frac{k}{365}\\right)',
+          },
+          {
+            heading: 'Think in pairs, not people',
+            text: 'The surprise dissolves once you count pairs. With $n$ people there are $\\binom{n}{2} = n(n-1)/2$ pairs, each an opportunity to match. The expected number of matching pairs is about $\\binom{n}{2}/365$, which reaches $1$ near $n = 28$ — already plenty of chances for a collision.',
+            formula: '\\text{pairs} = \\binom{n}{2} = \\frac{n(n-1)}{2}',
+          },
+          {
+            heading: 'An exponential approximation',
+            text: 'Using $1 - x \\approx e^{-x}$ for small $x$, the no-match probability is approximately $e^{-n(n-1)/730}$. Setting this equal to $1/2$ and solving gives $n \\approx 23$ — the famous threshold where a shared birthday becomes more likely than not.',
+            formula: 'P(\\text{no match}) \\approx e^{-\\,n(n-1)/730}',
+          },
+        ],
       },
       {
         id: 'l4-s2',
@@ -291,6 +481,38 @@ export const lessons: Lesson[] = [
           incorrect: 'It is about 0.89 — nearly certain. The pair count explodes: 40 people make 780 pairs.',
         },
       },
+      {
+        id: 'l4-s5',
+        type: 'problem',
+        title: 'A small party',
+        body: 'Thirty people gather at a party.',
+        simulation: 'birthday',
+        simConfig: { people: 30, trials: 3000 },
+        question: 'What is the probability that two of them share a birthday? (decimal)',
+        answer: birthdayProb(30),
+        tolerance: 0.07,
+        unit: 'probability',
+        feedback: {
+          correct: 'Right — about 0.71. Past the halfway point of 23, the odds keep climbing fast.',
+          incorrect: 'It is about 0.71. Thirty people make 435 pairs, so a match is already likely.',
+        },
+      },
+      {
+        id: 'l4-s6',
+        type: 'problem',
+        title: 'A crowded room',
+        body: 'Fifty people are in the room.',
+        simulation: 'birthday',
+        simConfig: { people: 50, trials: 3000 },
+        question: 'What is the probability that two share a birthday? (decimal)',
+        answer: birthdayProb(50),
+        tolerance: 0.04,
+        unit: 'probability',
+        feedback: {
+          correct: 'Exactly — about 0.97. With 1,225 pairs, a shared birthday is nearly certain.',
+          incorrect: 'It is about 0.97 — almost guaranteed. Fifty people form 1,225 pairs.',
+        },
+      },
     ],
   },
   {
@@ -308,6 +530,31 @@ export const lessons: Lesson[] = [
         body: 'Expected value is the average payout you would get per try if you repeated a game forever. It is each outcome weighted by its probability. Spin the prize wheel many times and watch the running average settle on a single number — that number is the expected value.',
         simulation: 'expectedValue',
         simConfig: wheelConfig(prizeWheel),
+        lecture: [
+          {
+            heading: 'Definition of expected value',
+            text: 'The expected value of a discrete random variable is the sum of its outcomes, each weighted by its probability. It is the probability-weighted average — equivalently, the center of mass of the distribution.',
+            formula: 'E[X] = \\sum_i x_i \\, P(X = x_i)',
+          },
+          {
+            heading: 'It is the long-run average',
+            text: 'By the Law of Large Numbers, the average payout over many independent plays converges to E[X]. The running average you watch on the wheel is settling onto exactly this number, which is why expected value predicts long-term performance.',
+          },
+          {
+            heading: 'Not necessarily attainable',
+            text: 'Expected value is a balance point, not a typical outcome. A fair six-sided die has $E[X] = 3.5$ even though you can never roll a $3.5$. Read it as where the distribution balances, not as a value you expect to see on any single try.',
+            formula: 'E[\\text{die}] = \\frac{1+2+3+4+5+6}{6} = 3.5',
+          },
+          {
+            heading: 'Linearity of expectation',
+            text: 'Expectation is linear: the expected value of a sum is the sum of the expected values, scaling included — and remarkably, this holds even when the variables are dependent. Linearity is the workhorse that lets you split a complicated payoff into simple pieces.',
+            formula: 'E[aX + bY] = a\\,E[X] + b\\,E[Y]',
+          },
+          {
+            heading: 'Fair games and the house edge',
+            text: 'A wager is fair when its expected payout equals its cost. Lotteries and casinos deliberately price bets so that expected value falls short of the cost — that gap is the house edge, and it is why the house wins over the long run.',
+          },
+        ],
       },
       {
         id: 'l5-s2',
@@ -357,6 +604,38 @@ export const lessons: Lesson[] = [
           incorrect: 'A 0.1 chance at $100 is worth 100 × 0.1 = $10 on average.',
         },
       },
+      {
+        id: 'l5-s5',
+        type: 'problem',
+        title: 'A simple coin game',
+        body: 'A game pays $2 if a fair coin lands heads, and $0 if it lands tails.',
+        simulation: 'expectedValue',
+        simConfig: wheelConfig(coinGame),
+        question: 'What is the expected payout per play? (dollars)',
+        answer: wheelEV(coinGame),
+        tolerance: 0.3,
+        unit: 'dollars',
+        feedback: {
+          correct: 'Right — 2(0.5) + 0(0.5) = $1.00.',
+          incorrect: 'Weight each payout by its chance: 2(0.5) + 0(0.5) = $1.00.',
+        },
+      },
+      {
+        id: 'l5-s6',
+        type: 'problem',
+        title: 'A three-prize wheel',
+        body: 'This wheel pays nothing 70% of the time, $5 with probability 0.2, and $20 with probability 0.1.',
+        simulation: 'expectedValue',
+        simConfig: wheelConfig(mixWheel),
+        question: 'What is the expected payout of one spin? (dollars)',
+        answer: wheelEV(mixWheel),
+        tolerance: 0.5,
+        unit: 'dollars',
+        feedback: {
+          correct: 'Yes — 0(0.7) + 5(0.2) + 20(0.1) = $3.00.',
+          incorrect: 'Add the weighted payouts: 0(0.7) + 5(0.2) + 20(0.1) = $3.00.',
+        },
+      },
     ],
   },
   {
@@ -374,6 +653,33 @@ export const lessons: Lesson[] = [
         body: 'A conditional probability is the chance of an event given that something else has already happened. Drawing cards without replacement is the cleanest example: once a card is gone, the deck — and every probability — changes. Deal many times and watch the fractions settle.',
         simulation: 'conditional',
         simConfig: { metric: 0, scaleMax: 0.15 },
+        lecture: [
+          {
+            heading: 'Definition of conditional probability',
+            text: 'The conditional probability of $A$ given $B$ restricts the sample space to outcomes where $B$ occurs, then asks how often $A$ also holds. It is defined as the joint probability divided by the probability of the condition (requiring $P(B) > 0$).',
+            formula: 'P(A \\mid B) = \\frac{P(A \\cap B)}{P(B)}',
+          },
+          {
+            heading: 'The multiplication (chain) rule',
+            text: 'Rearranging the definition gives the chain rule: the probability that both $A$ and $B$ happen is the probability of $A$ times the probability of $B$ given $A$. For draws without replacement the deck shrinks after each draw, so these conditional probabilities change as you go.',
+            formula: 'P(A \\cap B) = P(A)\\,P(B \\mid A)',
+          },
+          {
+            heading: 'Drawing without replacement',
+            text: 'Two aces in a row show the chain rule directly. The first ace has probability $4/52$; given it is set aside, the second has probability $3/51$. Both the numerator and the denominator update because a card was removed from the deck.',
+            formula: 'P(\\text{ace, then ace}) = \\frac{4}{52}\\cdot\\frac{3}{51}',
+          },
+          {
+            heading: 'Independence as a special case',
+            text: 'Events $A$ and $B$ are independent exactly when conditioning on $B$ does not change $A$ — equivalently, when the joint probability factors into the product of the two. Drawing with replacement restores independence, since the deck returns to its original state each time.',
+            formula: 'A \\perp B \\iff P(A \\mid B) = P(A) \\iff P(A \\cap B) = P(A)P(B)',
+          },
+          {
+            heading: 'Toward Bayes’ theorem',
+            text: 'Conditioning can be reversed. Writing the joint probability two ways and equating them yields Bayes’ theorem — the rule for updating a belief about $A$ after observing $B$. It is the formal engine behind learning from evidence.',
+            formula: 'P(A \\mid B) = \\frac{P(B \\mid A)\\,P(A)}{P(B)}',
+          },
+        ],
       },
       {
         id: 'l6-s2',
@@ -423,6 +729,38 @@ export const lessons: Lesson[] = [
           incorrect: 'Chain the two draws: (4/52)(3/51) ≈ 0.0045. Conditional probabilities multiply.',
         },
       },
+      {
+        id: 'l6-s5',
+        type: 'problem',
+        title: 'Drawing a face card',
+        body: 'A face card is a Jack, Queen, or King — 12 of the 52 cards.',
+        simulation: 'conditional',
+        simConfig: { metric: 3, scaleMax: 0.4, trials: 6000 },
+        question: 'What is the probability the first card drawn is a face card? (decimal)',
+        answer: 12 / 52,
+        tolerance: 0.03,
+        unit: 'probability',
+        feedback: {
+          correct: 'Right — 12 face cards in 52 is 3/13 ≈ 0.231.',
+          incorrect: 'There are 12 face cards in 52: 12/52 = 3/13 ≈ 0.231.',
+        },
+      },
+      {
+        id: 'l6-s6',
+        type: 'problem',
+        title: 'When the first card is not an ace',
+        body: 'Suppose the first card you draw is not an ace and you set it aside. Now 51 cards remain, and all 4 aces are still in the deck.',
+        simulation: 'conditional',
+        simConfig: { metric: 4, scaleMax: 0.15, trials: 8000 },
+        question: 'What is the probability the next card is an ace? (decimal)',
+        answer: 4 / 51,
+        tolerance: 0.02,
+        unit: 'probability',
+        feedback: {
+          correct: 'Yes — all 4 aces remain among 51 cards: 4/51 ≈ 0.078.',
+          incorrect: 'No ace was removed, so 4 aces remain in 51 cards: 4/51 ≈ 0.078.',
+        },
+      },
     ],
   },
   {
@@ -440,6 +778,26 @@ export const lessons: Lesson[] = [
         body: 'You pick one of three doors. The host, who knows where the car is, opens a different door revealing a goat, then offers you the chance to switch. Does switching help? Toggle the strategy and play many rounds — the win rates tell a clear story.',
         simulation: 'montyHall',
         simConfig: { doors: 3 },
+        lecture: [
+          {
+            heading: 'The host changes everything',
+            text: 'The crucial feature of Monty Hall is that the host knows where the car is and always opens a door revealing a goat. That reveal is not random — it is a deliberate, filtered action that injects information into the game.',
+          },
+          {
+            heading: 'Your door is frozen at 1/3',
+            text: 'When you first choose, the probability the car is behind your door is $1/3$, and the probability it is behind one of the other two is $2/3$. The host opening a goat does not raise your door’s $1/3$ — instead it collapses that entire $2/3$ onto the single remaining unopened door.',
+            formula: 'P(\\text{your door}) = \\tfrac{1}{3}, \\quad P(\\text{the other}) = \\tfrac{2}{3}',
+          },
+          {
+            heading: 'Generalizing to n doors',
+            text: 'With $n$ doors you pick one (probability $1/n$ of being right) and the host opens $n - 2$ goats. Staying wins only when your first pick was correct, while switching wins whenever it was wrong. The advantage of switching grows as the number of doors increases.',
+            formula: 'P(\\text{win} \\mid \\text{stay}) = \\tfrac{1}{n}, \\quad P(\\text{win} \\mid \\text{switch}) = \\tfrac{n-1}{n}',
+          },
+          {
+            heading: 'Why intuition rebels',
+            text: 'Seeing two closed doors at the end, people assume 50/50 and treat them as symmetric. They are not: the host’s knowledgeable reveal concentrates the leftover probability onto the switch door. With 100 doors the asymmetry becomes obvious — switching wins 99 times out of 100.',
+          },
+        ],
       },
       {
         id: 'l7-s2',
@@ -487,6 +845,38 @@ export const lessons: Lesson[] = [
         feedback: {
           correct: 'Exactly — 99/100. With 100 doors the intuition finally clicks: your first pick is almost always wrong, so switching almost always wins.',
           incorrect: 'Your first pick is right only 1/100 of the time, so switching wins the other 99/100 ≈ 0.99.',
+        },
+      },
+      {
+        id: 'l7-s5',
+        type: 'problem',
+        title: 'Staying with a hundred doors',
+        body: 'Back to 100 doors. You pick one and refuse to switch, even after the host opens 98 goats.',
+        simulation: 'montyHall',
+        simConfig: { doors: 100, strategy: 0, trials: 1500 },
+        question: 'What fraction of games do you win by staying? (decimal)',
+        answer: 1 / 100,
+        tolerance: 0.03,
+        unit: 'fraction',
+        feedback: {
+          correct: 'Right — staying wins only if your 1-in-100 first pick was the car: 0.01.',
+          incorrect: 'Staying wins only when your first pick was right — that is 1/100 = 0.01.',
+        },
+      },
+      {
+        id: 'l7-s6',
+        type: 'problem',
+        title: 'Ten doors, switching',
+        body: 'With 10 doors, you pick one and the host opens 8 goats, leaving yours and one other. You switch.',
+        simulation: 'montyHall',
+        simConfig: { doors: 10, strategy: 1, trials: 1500 },
+        question: 'What fraction of games do you win by switching? (decimal)',
+        answer: montyHallSwitchWin(10),
+        tolerance: 0.05,
+        unit: 'fraction',
+        feedback: {
+          correct: 'Yes — switching wins whenever your first pick was wrong: 9/10 = 0.90.',
+          incorrect: 'Your first pick is right only 1/10 of the time, so switching wins 9/10 = 0.90.',
         },
       },
     ],

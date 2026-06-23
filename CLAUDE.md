@@ -10,10 +10,13 @@ modeled on Brilliant.org. One subject, taught deeply. The core interaction is a
 prediction *before* a Canvas simulation runs, so the simulation is the answer key
 rather than decoration.
 
-- **Persona:** "The Curious Adult Learner" — short (3–5 min) mobile sessions, feedback
+- **Persona:** "The Curious Adult Learner" — short (3–5 min) sessions, feedback
   that explains rather than grades, a clear sense of mastery and what's next.
-- **Status:** Phase 1 (MVP) complete; all 7 lessons built. Phases 2 (AI) and 3
-  (learning science) are specced in `PRD.md` but not yet built.
+- **Status:** Phase 1 (MVP) complete; all 7 lessons built. A **Khan Academy–style
+  UI redesign** has since landed on top (full-page layout with a sticky topbar +
+  responsive sidebar, light/dark theme, per-lesson icons, segmented grading, KaTeX
+  lectures, confetti). Phases 2 (AI) and 3 (learning science) are specced in
+  `PRD.md` but not yet built.
 
 ## Hard rules
 
@@ -59,19 +62,27 @@ src/
     backend.ts        # auto-selects firebase vs local from VITE_FIREBASE_* env
     router.ts         # tiny custom hash router (NOTE: react-router-dom is in
                       #   package.json but UNUSED — do not reintroduce it)
+    confetti.ts       # dependency-free canvas confetti burst (respects reduced-motion)
   simulations/        # one Canvas component per SimulationType + index.ts registry
-  components/         # LessonPlayer (core flow), FeedbackBanner, CompletionScreen, ...
-  hooks/              # useAuth, useProgress (incl. streaks), useUnlockAll
-  store/progress.ts   # pure logic: mastery, unlock state, next-step, streak math
+  components/         # LessonPlayer (core flow), FeedbackBanner, CompletionScreen,
+                      #   AppLayout (topbar + sidebar shell), ProfileMenu (stats +
+                      #   theme toggle + sign out), QuestionBar (segmented per-question
+                      #   status), LectureContent (KaTeX lectures), LessonIcon,
+                      #   ProgressRing, ...
+  hooks/              # useAuth, useProgress (incl. streaks), useUnlockAll, useTheme
+  store/progress.ts   # pure logic: cleared/mastery, unlock state, next-step, streak math
   pages/              # LoginPage, CoursePage, LessonPage
   types/lesson.ts     # content model types
 ```
 
 ### Content model (`types/lesson.ts`)
-A `Lesson` is an ordered list of `LessonStep`s. Steps are either `concept` (explore a
-sim freely via sliders) or `problem` (predict-then-verify, gradable). Problem steps
-carry a computed `answer`, a `tolerance`, a `unit` label, and hand-written `feedback`
-(correct/incorrect). Numeric correctness is the single `isCorrect(guess, answer, tol)`.
+A `Lesson` is an ordered list of `LessonStep`s: one `concept` step (explore a sim
+freely via sliders) followed by **exactly 5 `problem` steps** (predict-then-verify,
+gradable). Problem steps carry a computed `answer`, a `tolerance`, a `unit` label, and
+hand-written `feedback` (correct/incorrect). Numeric correctness is the single
+`isCorrect(guess, answer, tol)`. The `concept` step also carries a `lecture`
+(`LectureSection[]`: heading + text + optional LaTeX `formula`) rendered by
+`LectureContent`. A graded attempt produces a `ProblemResult` (`'green' | 'yellow' | 'red'`).
 
 ### Backend abstraction (`lib/storage.ts`)
 Everything persists behind the `Backend` interface (`auth` + `progress` adapters).
@@ -84,13 +95,21 @@ Firestore layout: `users/{uid}/progress/{lessonId}` and `users/{uid}/meta/stats`
 Rules in `firestore.rules` restrict each user to their own `users/{uid}/**`.
 
 ### Mastery & progress (`store/progress.ts`)
-- A lesson is **mastered** when every gradable problem has been answered correctly.
-- Lessons unlock sequentially (prerequisite must be mastered) unless the **Free
+- **Grading is 2 attempts per problem.** First-try correct = **green**, second-try
+  correct = **yellow**, wrong twice = **red**. Outcomes are stored per problem in a
+  `results` map; `recordResult` takes the color. `resetLessonResults` clears a lesson
+  so it can be replayed. Legacy `completedProblemIds` is read for backward-compat.
+- A lesson is **cleared** (unlocks the next) when all 5 problems are green *or* yellow.
+  A lesson is **mastered** (badge) only when all 5 are **green**.
+- Lessons unlock sequentially (prerequisite must be **cleared**) unless the **Free
   navigation** toggle (`useUnlockAll`, persisted in localStorage) is on.
 - `currentStepId` enables exact-step resume.
-- 2 wrong answers in a row re-surfaces the *current* lesson's own concept material.
+- 2 wrong answers in a row re-surfaces the *current* lesson's own concept material;
+  the player also offers an inline "Review lecture" panel on problem steps.
 - **Streaks:** `recordActiveDay` advances a daily streak (same day = no-op, next day =
   +1, gap = reset). Recorded on lesson start and on each answer. Stored in `UserStats`.
+- The `QuestionBar` renders one segment per problem (green/yellow/red/neutral); it
+  replaced the old single continuous progress bar.
 
 ## Canvas simulation conventions
 
@@ -105,8 +124,17 @@ are registered in `simulations/index.ts`. When adding/maintaining one:
   until the run starts (`mode === 'explore' || processed > 0`), or they reveal answers.
 - **Performance (animate-small / batch-large):** animate individual trials for small
   counts; for large counts compute in chunks per frame and animate only the aggregate
-  (bar/histogram/curve) to hold ~60 FPS. Cap concurrent sprites (e.g. Galton balls).
+  (bar/histogram/curve) to hold ~60 FPS.
+- **Never call `setupCanvas` inside the per-frame draw loop.** Reassigning
+  `canvas.width`/`height` reallocates and clears the backing store every frame and is
+  the #1 cause of jank — cache `{ ctx, width, height }` and refresh it only on mount,
+  resize, and run-start. Likewise, **avoid per-frame `shadowBlur`** (very expensive
+  with many sprites); use plain fills. The `GaltonBoard` follows both rules and now
+  streams *every* ball as it falls (a few spawned per frame) rather than capping
+  on-screen sprites and fast-forwarding the remainder into the bins.
 - Use `setupCanvas` (handles devicePixelRatio) and `cssVar` from `canvasUtils.ts`.
+  Sims read CSS vars on paint, so they must repaint on theme change — `useTheme`
+  dispatches a `resize` after toggling, which the sims already listen for.
 - `LessonPlayer` keys the sim by `step.id` and the player by `lesson.id` so navigation
   remounts with fresh state. Don't remove these keys.
 
@@ -122,13 +150,23 @@ are registered in `simulations/index.ts`. When adding/maintaining one:
 - `import.meta.env` keys are typed in `src/vite-env.d.ts` — add new `VITE_*` vars there.
 - Vite bundles Firebase even in local mode (~242 KB gzip). Acceptable for now; if asked
   to slim the local path, code-split via dynamic import (would make `backend` async).
+- **KaTeX** renders lecture math. `main.tsx` imports `katex/dist/katex.min.css` and
+  the build ships KaTeX font files. Lecture `formula`s use display math; inline math
+  uses `$...$` spans (see `LectureContent`). Bundle is now ~330 KB gzip + fonts.
 
 ## Styling
 
 - Theme lives in `src/index.css` (CSS variables) and `src/App.css` (components).
-- Current skin is a dark neon/arcade theme. Design-refresh mockups explored in chat;
-  any reskin should be CSS-variable-driven so component structure stays intact.
-- Mobile-first (≤ ~390px), single 560px-max column, touch-friendly controls.
+- Current skin is a **Khan Academy–style light theme by default, with a
+  `data-theme="dark"` override** on `<html>` — driven entirely by CSS variables, so
+  any reskin stays CSS-variable-driven and component structure stays intact. The
+  simulation-critical var names (`--accent`, `--accent-2`, `--cyan`, `--text`,
+  `--text-h`, `--border`, plus `--warn` for yellow grading) must keep working in both
+  themes. Preference is persisted/applied by `useTheme`; `main.tsx` applies the saved
+  theme before first paint to avoid a flash.
+- **Full-page responsive layout** (`AppLayout`): sticky topbar + left sidebar on
+  desktop; the sidebar becomes an off-canvas drawer (hamburger) on mobile. Content
+  column is centered; touch-friendly controls throughout.
 
 ## Docs
 

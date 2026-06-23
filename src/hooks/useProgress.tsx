@@ -3,14 +3,15 @@ import type { ReactNode } from 'react';
 import { backend } from '../lib/backend';
 import type { ProgressMap, UserStats } from '../lib/storage';
 import { emptyStats } from '../lib/storage';
-import type { Lesson, LessonProgress, LessonStep } from '../types/lesson';
+import type { Lesson, LessonProgress, LessonStep, ProblemResult } from '../types/lesson';
 import { useAuth } from './useAuth';
-import { computeMastered, initialProgress, recordActiveDay } from '../store/progress';
+import { computeCleared, computeMastered, initialProgress, recordActiveDay } from '../store/progress';
 
 interface RecordResult {
   progress: LessonProgress;
   masteredNow: boolean;
-  /** True when wrongStreak just reached the review threshold (FR-5.3). */
+  clearedNow: boolean;
+  /** True when the question just resolved to red (wrong on both tries). */
   triggerReview: boolean;
 }
 
@@ -21,7 +22,9 @@ interface ProgressContextValue {
   get(lessonId: string): LessonProgress | undefined;
   ensureStarted(lesson: Lesson): LessonProgress;
   setCurrentStep(lessonId: string, stepId: string): void;
-  recordResult(lesson: Lesson, step: LessonStep, correct: boolean): RecordResult;
+  recordResult(lesson: Lesson, step: LessonStep, result: ProblemResult): RecordResult;
+  /** Wipe a lesson's question results so it can be replayed from scratch. */
+  resetLessonResults(lesson: Lesson): void;
 }
 
 const ProgressContext = createContext<ProgressContextValue | null>(null);
@@ -106,30 +109,46 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
         if (existing.currentStepId === stepId) return;
         persist(lessonId, { ...existing, currentStepId: stepId, lastVisited: Date.now() });
       },
-      recordResult: (lesson, step, correct) => {
+      recordResult: (lesson, step, result) => {
         recordActivity();
         const prev = allRef.current[lesson.id] ?? initialProgress(lesson.steps[0]?.id ?? '');
-        const completedProblemIds = correct
+        const cleared = result === 'green' || result === 'yellow';
+        const results = { ...(prev.results ?? {}), [step.id]: result };
+        const completedProblemIds = cleared
           ? Array.from(new Set([...prev.completedProblemIds, step.id]))
-          : prev.completedProblemIds;
-        const wrongStreak = correct ? 0 : prev.wrongStreak + 1;
+          : prev.completedProblemIds.filter((id) => id !== step.id);
         const candidate: LessonProgress = {
           ...prev,
           attempts: prev.attempts + 1,
-          wrongStreak,
+          wrongStreak: cleared ? 0 : prev.wrongStreak + 1,
+          results,
           completedProblemIds,
           lastVisited: Date.now(),
         };
         const masteredNow = computeMastered(lesson, candidate);
+        const clearedNow = computeCleared(lesson, candidate);
         const wasMastered = prev.mastered;
+        const wasCleared = prev.cleared;
         candidate.mastered = masteredNow;
-        if (masteredNow && !wasMastered) candidate.completedAt = Date.now();
+        candidate.cleared = clearedNow;
+        if (clearedNow && !wasCleared) candidate.completedAt = Date.now();
         persist(lesson.id, candidate);
         return {
           progress: candidate,
           masteredNow: masteredNow && !wasMastered,
-          triggerReview: !correct && wrongStreak >= 2,
+          clearedNow: clearedNow && !wasCleared,
+          triggerReview: result === 'red',
         };
+      },
+      resetLessonResults: (lesson) => {
+        const firstStepId = lesson.steps[0]?.id ?? '';
+        const prev = allRef.current[lesson.id];
+        const fresh = initialProgress(firstStepId);
+        persist(lesson.id, {
+          ...fresh,
+          attempts: prev?.attempts ?? 0,
+          lastVisited: Date.now(),
+        });
       },
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

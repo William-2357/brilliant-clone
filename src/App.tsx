@@ -3,6 +3,7 @@ import { AuthProvider } from './hooks/useAuth';
 import { ProgressProvider } from './hooks/useProgress';
 import { useRoute, matchRoute, navigate } from './lib/router';
 import AuthGuard from './components/AuthGuard';
+import AppLayout from './components/AppLayout';
 import LoginPage from './pages/LoginPage';
 import CoursePage from './pages/CoursePage';
 import LessonPage from './pages/LessonPage';
@@ -24,7 +25,9 @@ function Routes() {
   if (lessonMatch) {
     return (
       <AuthGuard>
-        <LessonPage lessonId={lessonMatch.id} />
+        <AppLayout activeLessonId={lessonMatch.id}>
+          <LessonPage lessonId={lessonMatch.id} />
+        </AppLayout>
       </AuthGuard>
     );
   }
@@ -32,7 +35,9 @@ function Routes() {
   if (path === '/learn') {
     return (
       <AuthGuard>
-        <CoursePage />
+        <AppLayout activeLessonId={null}>
+          <CoursePage />
+        </AppLayout>
       </AuthGuard>
     );
   }
@@ -44,9 +49,7 @@ export default function App() {
   return (
     <AuthProvider>
       <ProgressProvider>
-        <div className="app-shell">
-          <Routes />
-        </div>
+        <Routes />
       </ProgressProvider>
     </AuthProvider>
   );
