@@ -1,0 +1,69 @@
+:root {
+  --bg: #0b0a12;
+  --surface: rgba(24, 21, 34, 0.72);
+  --surface-solid: #16121f;
+  --text: #b9b3cc;
+  --text-h: #ffffff;
+  --muted: #7d7791;
+  --border: #2c2542;
+  --accent: #b14dff;
+  --accent-2: #ff4dd8;
+  --cyan: #36e2ff;
+  --accent-bg: rgba(177, 77, 255, 0.12);
+  --grad: linear-gradient(95deg, #7b5cff, #ff4dd8);
+  --grad-cyan: linear-gradient(90deg, #7b5cff, #36e2ff);
+  --good: #3ef0a0;
+  --good-bg: rgba(62, 240, 160, 0.12);
+  --bad: #ff5d6c;
+  --bad-bg: rgba(255, 93, 108, 0.12);
+  --radius: 16px;
+  --glow-accent: 0 0 18px rgba(177, 77, 255, 0.55);
+  --glow-pink: 0 0 22px rgba(255, 77, 216, 0.45);
+
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100svh;
+}
+
+body {
+  color: var(--text);
+  line-height: 1.5;
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(1100px 520px at 50% -10%, rgba(123, 92, 255, 0.18), transparent 70%),
+    radial-gradient(900px 500px at 90% 0%, rgba(255, 77, 216, 0.1), transparent 60%),
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 30px 30px, 30px 30px;
+  background-attachment: fixed;
+}
+
+h1,
+h2,
+h3 {
+  color: var(--text-h);
+  line-height: 1.2;
+  margin: 0;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+input {
+  font: inherit;
+}
