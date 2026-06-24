@@ -39,9 +39,18 @@ Each lesson is one **concept** step (explore the simulation freely, with a short
 KaTeX lecture) followed by **five gradable problems** (`predict → run → feedback`).
 Every problem allows two attempts — first-try correct scores **green**, a second-try
 correct **yellow**, two misses **red**. A lesson **clears** (unlocking the next) once
-all five are green or yellow, and is **mastered** when all five are green. Two wrong
-answers in a row re-surface the lesson's own teaching material, and you can flip on
-**Free navigation** to jump to any lesson.
+all five are green or yellow, and is **mastered** when all five are green. A wrong
+first attempt reveals nothing — not even the simulation — so the answer and
+explanation appear only after the second miss. Two wrong answers in a row re-surface
+the lesson's own teaching material, and you can flip on **Free navigation** to jump
+to any lesson.
+
+**Questions are generated, not fixed.** Each problem is built from a parameterized
+template (`src/content/problemTemplates.ts`) that varies the numbers and objects and
+recomputes the answer from `probability.ts` — and asks for either a probability /
+fraction or a **count** ("about how many of N…"). Retrying or replaying a lesson
+**cycles** to different questions instead of repeating the same ones. Beyond typing a
+number, some problems are **drag-to-rank** or **sketch-the-distribution**.
 
 ### Habit loop
 
@@ -58,6 +67,8 @@ navigation preferences. A **Sandbox** lets you play any simulation freely, no gr
 - **React 19 + TypeScript + Vite**
 - **HTML5 Canvas** simulations (manual math, no physics engine; animate-small /
   batch-large with an on-screen ball cap on the Galton board)
+- **KaTeX** lecture math; **Chakra Petch** display font for the wordmark + titles,
+  self-hosted via `@fontsource` (no CDN) with the body in the system sans stack
 - **Persistence/auth behind a `Backend` interface** (`src/lib/storage.ts`):
   - **Firebase Auth + Firestore** — real accounts and cross-device progress/streak
     sync. Used automatically when `VITE_FIREBASE_*` env vars are present.
@@ -133,19 +144,24 @@ The Firebase CLI files are scaffolded (`firebase.json`, `.firebaserc`,
 ```
 src/
   content/
-    lessons.ts              # all 8 lessons as typed data; answers computed by probability fns
+    lessons.ts              # all 8 lessons as typed data; the 5 problems per lesson are
+                            #   the slot definitions + fallback content
+    problemTemplates.ts     # per-slot question generators — vary numbers/objects,
+                            #   answers recomputed from probability.ts, cycle on retry/replay
     simData.ts              # prize-wheel definitions shared by content + sim
   lib/
     probability.ts          # owned probability functions (single source of truth for answers)
+    rng.ts                  # seeded PRNG (mulberry32) for question generation
     storage.ts              # Backend / Auth / Progress / UserStats interfaces
     localBackend.ts         # localStorage adapter (fallback)
     firebaseBackend.ts      # Firestore + Firebase Auth adapter (cross-device, lazy init)
     backend.ts              # auto-selects firebase vs local from env
     router.ts               # tiny hash router
-  simulations/              # CoinFlip, DiceRoll, GaltonBoard, Birthday, ExpectedValue,
-                            #   ConditionalProbability, MontyHall, RandomWalk, CLT (Canvas)
+  simulations/              # CoinFlip, DiceRoll, GaltonBoard, ExpectedValue, Conditional,
+                            #   MontyHall, RandomWalk, CLT (+ Birthday, Sandbox-only) — Canvas
   components/               # AppLayout, LessonPlayer, FeedbackBanner, CompletionScreen,
-                            #   LectureContent (KaTeX), ProfileMenu, QuestionBar, etc.
+                            #   LectureContent (KaTeX), OrderItems, DrawDistribution,
+                            #   ProfileMenu (avatar → profile page), QuestionBar, etc.
   hooks/                    # useAuth, useProgress (incl. streaks), useUnlockAll, useTheme
   store/progress.ts         # mastery / unlock / next-lesson / streak logic (pure)
   pages/                    # LoginPage, CoursePage, LessonPage, SandboxPage, ProfilePage

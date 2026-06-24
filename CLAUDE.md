@@ -12,11 +12,14 @@ rather than decoration.
 
 - **Persona:** "The Curious Adult Learner" — short (3–5 min) sessions, feedback
   that explains rather than grades, a clear sense of mastery and what's next.
-- **Status:** Phase 1 (MVP) complete; all 9 lessons built. A **Khan Academy–style
-  UI redesign** has since landed on top (full-page layout with a sticky topbar +
-  responsive sidebar, light/dark theme, per-lesson icons, segmented grading, KaTeX
-  lectures, confetti). Phases 2 (AI) and 3 (learning science) are specced in
-  `PRD.md` but not yet built.
+- **Status:** Phase 1 (MVP) complete; **8 lessons** built. A **Khan Academy–style
+  UI redesign** sits on top (full-page layout with a sticky topbar + responsive
+  sidebar, light/dark theme, a **Chakra Petch** display font for the wordmark +
+  titles, per-lesson icons, segmented grading, KaTeX lectures, confetti, and a
+  dedicated **profile page**). Problems are **generated from parameterized
+  templates** (a non-AI question pool that varies numbers/objects and cycles on
+  retry/replay). Phases 2 (AI) and 3 (learning science) are specced in `PRD.md`
+  but not yet built.
 
 ## Hard rules
 
@@ -24,7 +27,9 @@ rather than decoration.
   is a graded constraint. AI features come later as *additions*, never replacements.
 - **`src/lib/probability.ts` is the single source of truth for every answer.** Lesson
   answers are computed by these functions, never hand-typed. Simulations animate
-  *toward* these same values. If you add a problem, compute its answer from a function.
+  *toward* these same values. If you add a problem, compute its answer from a function —
+  this includes the generated problems in `content/problemTemplates.ts`, which
+  parameterize a question and recompute the answer from `probability.ts`.
 - **The app must work with no backend config** (localStorage fallback). Don't make
   Firebase a hard dependency of the core experience.
 
@@ -52,26 +57,31 @@ must pass.
 ```
 src/
   content/
-    lessons.ts        # all 7 lessons as typed data; answers computed from probability.ts
-    simData.ts        # prize-wheel definitions shared by content + ExpectedValue sim
+    lessons.ts          # all 8 lessons as typed data; the 5 problems per lesson are
+                        #   the slot definitions + fallback content
+    problemTemplates.ts # per-slot question generators — vary numbers/objects, recompute
+                        #   answers from probability.ts, cycle on retry/replay
+    simData.ts          # prize-wheel definitions shared by content + ExpectedValue sim
   lib/
-    probability.ts    # owned probability fns — SOURCE OF TRUTH for answers
-    storage.ts        # Backend / Auth / Progress / UserStats interfaces
-    localBackend.ts   # localStorage adapter (fallback, demo-grade auth)
-    firebaseBackend.ts# Firestore + Firebase Auth adapter (lazy init, side-effect-free import)
-    backend.ts        # auto-selects firebase vs local from VITE_FIREBASE_* env
-    router.ts         # tiny custom hash router (NOTE: react-router-dom is in
-                      #   package.json but UNUSED — do not reintroduce it)
-    confetti.ts       # dependency-free canvas confetti burst (respects reduced-motion)
-  simulations/        # one Canvas component per SimulationType + index.ts registry
-  components/         # LessonPlayer (core flow), FeedbackBanner, CompletionScreen,
-                      #   AppLayout (topbar + sidebar shell), ProfileMenu (stats +
-                      #   theme toggle + sign out), QuestionBar (segmented per-question
-                      #   status), LectureContent (KaTeX lectures), LessonIcon,
-                      #   ProgressRing, ...
+    probability.ts      # owned probability fns — SOURCE OF TRUTH for answers
+    rng.ts              # seeded PRNG (mulberry32) + helpers for question generation
+    storage.ts          # Backend / Auth / Progress / UserStats interfaces
+    localBackend.ts     # localStorage adapter (fallback, demo-grade auth)
+    firebaseBackend.ts  # Firestore + Firebase Auth adapter (lazy init, side-effect-free import)
+    backend.ts          # auto-selects firebase vs local from VITE_FIREBASE_* env
+    router.ts           # tiny custom hash router (NOTE: react-router-dom is in
+                        #   package.json but UNUSED — do not reintroduce it)
+    confetti.ts         # dependency-free canvas confetti burst (respects reduced-motion)
+  simulations/          # one Canvas component per SimulationType + index.ts registry
+                        #   (BirthdayProblem remains for the Sandbox; it has no lesson)
+  components/           # LessonPlayer (core flow), FeedbackBanner, CompletionScreen,
+                        #   AppLayout (topbar + sidebar w/ a Sandbox tab), ProfileMenu
+                        #   (avatar that links to the profile page), QuestionBar (segmented
+                        #   per-question status), LectureContent (KaTeX), OrderItems /
+                        #   DrawDistribution (non-numeric interactions), LessonIcon, ...
   hooks/              # useAuth, useProgress (incl. streaks), useUnlockAll, useTheme
   store/progress.ts   # pure logic: cleared/mastery, unlock state, next-step, streak math
-  pages/              # LoginPage, CoursePage, LessonPage
+  pages/              # LoginPage, CoursePage, LessonPage, SandboxPage, ProfilePage
   types/lesson.ts     # content model types
 ```
 
@@ -83,6 +93,24 @@ hand-written `feedback` (correct/incorrect). Numeric correctness is the single
 `isCorrect(guess, answer, tol)`. The `concept` step also carries a `lecture`
 (`LectureSection[]`: heading + text + optional LaTeX `formula`) rendered by
 `LectureContent`. A graded attempt produces a `ProblemResult` (`'green' | 'yellow' | 'red'`).
+
+**Interactions:** a problem's `interaction` is `numeric` (type a value), `order`
+(drag-to-rank via `OrderItems`, with optional `orderLabels`), or `draw` (sketch a
+distribution via `DrawDistribution`). Numeric problems also alternate between asking a
+probability/fraction and a **count** ("about how many of N…"). Within a lesson the
+holistic `order`/`draw` problems are placed **first** (they're given away by the later
+problems' sims) — except the Conditional ranking, which sits last.
+
+**Generated problems (`content/problemTemplates.ts`):** each slot id maps to a
+`ProblemTemplate` whose `build(rng)` returns a concrete `LessonStep` — parameterized
+numbers + object/scenario banks, with the answer recomputed from `probability.ts`.
+`LessonPlayer` overlays the generated problem onto the matching static slot (same id),
+so `gradableSteps`, mastery, `QuestionBar`, stats, and resume are all unchanged.
+Generation is keyed by `LessonProgress.seed` (stable per learner) combined with
+`attempt` (advances on replay) and a per-question `retry` index (advances on the second
+try): `cycle = attempt*2 + retry` seeds the RNG, so resume reproduces the same question
+while a retry or replay **cycles** to a different one. The static problems in
+`lessons.ts` remain the fallback when no template exists.
 
 ### Backend abstraction (`lib/storage.ts`)
 Everything persists behind the `Backend` interface (`auth` + `progress` adapters).
@@ -98,7 +126,12 @@ Rules in `firestore.rules` restrict each user to their own `users/{uid}/**`.
 - **Grading is 2 attempts per problem.** First-try correct = **green**, second-try
   correct = **yellow**, wrong twice = **red**. Outcomes are stored per problem in a
   `results` map; `recordResult` takes the color. `resetLessonResults` clears a lesson
-  so it can be replayed. Legacy `completedProblemIds` is read for backward-compat.
+  and advances `attempt` so a replay deals fresh questions. Legacy
+  `completedProblemIds` is read for backward-compat.
+- **Answer withheld until resolved.** A wrong *first* attempt reveals nothing and does
+  **not** run the simulation (grading uses the computed answer, not the sim); the
+  second try pulls a *different* generated problem. The answer, explanation, and sim
+  run appear only on a correct answer or the second wrong attempt.
 - A lesson is **cleared** (unlocks the next) when all 5 problems are green *or* yellow.
   A lesson is **mastered** (badge) only when all 5 are **green**.
 - Lessons unlock sequentially (prerequisite must be **cleared**) unless the **Free
@@ -135,8 +168,9 @@ are registered in `simulations/index.ts`. When adding/maintaining one:
 - Use `setupCanvas` (handles devicePixelRatio) and `cssVar` from `canvasUtils.ts`.
   Sims read CSS vars on paint, so they must repaint on theme change — `useTheme`
   dispatches a `resize` after toggling, which the sims already listen for.
-- `LessonPlayer` keys the sim by `step.id` and the player by `lesson.id` so navigation
-  remounts with fresh state. Don't remove these keys.
+- `LessonPlayer` keys the sim by `` `${step.id}:${seed}:${attempt}:${retry}` `` (so a
+  freshly generated problem remounts the sim with new params) and the player by
+  `lesson.id`. Don't remove these keys.
 
 ## Toolchain gotchas
 
@@ -152,7 +186,9 @@ are registered in `simulations/index.ts`. When adding/maintaining one:
   to slim the local path, code-split via dynamic import (would make `backend` async).
 - **KaTeX** renders lecture math. `main.tsx` imports `katex/dist/katex.min.css` and
   the build ships KaTeX font files. Lecture `formula`s use display math; inline math
-  uses `$...$` spans (see `LectureContent`). Bundle is now ~330 KB gzip + fonts.
+  uses `$...$` spans (see `LectureContent`); the Sandbox blurbs render KaTeX too.
+- **Self-hosted display font:** `@fontsource/chakra-petch` (latin 600/700) is imported
+  in `main.tsx`; its woff2 are bundled by Vite, so there's no runtime CDN font fetch.
 
 ## Styling
 
@@ -164,6 +200,9 @@ are registered in `simulations/index.ts`. When adding/maintaining one:
   `--text-h`, `--border`, plus `--warn` for yellow grading) must keep working in both
   themes. Preference is persisted/applied by `useTheme`; `main.tsx` applies the saved
   theme before first paint to avoid a flash.
+- **Fonts:** body uses the system sans stack; the brand wordmark and all titles/
+  headings use `--font-display` = **Chakra Petch**, self-hosted via
+  `@fontsource/chakra-petch` (imported in `main.tsx`, latin 600/700) — no CDN fonts.
 - **Full-page responsive layout** (`AppLayout`): sticky topbar + left sidebar on
   desktop; the sidebar becomes an off-canvas drawer (hamburger) on mobile. Content
   column is centered; touch-friendly controls throughout.

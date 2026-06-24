@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 .agents/skills/*
+CLAUDE.md
 
 # Environment / secrets
 .env
