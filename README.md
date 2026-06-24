@@ -3,7 +3,7 @@
 **Domain: Probability & Statistics.** A learn-by-doing app modeled on Brilliant.org.
 You predict an outcome, run a simulation, and watch the math reveal itself.
 
-> **Deployed app:** _not yet deployed — add the public URL here after deploying._
+> **Deployed app:** https://brilliant-clone-69be8.web.app
 
 ## Who it's for
 
@@ -24,26 +24,34 @@ A single subject (probability), taught through interactive Canvas simulations us
 prediction *before* the simulation runs, so the simulation is the answer key rather
 than decoration.
 
-### Course path (7 lessons, all built)
+### Course path (8 lessons, all built)
 
 1. **What is Probability?** — long-run frequency (coin flip)
 2. **Independent Events** — two-dice sum distribution
 3. **The Galton Board** — how the bell curve emerges
-4. **The Birthday Problem** — counterintuitive collisions
-5. **Expected Value** — weighted average of outcomes (prize wheel)
-6. **Conditional Probability** — updating on new information (cards)
-7. **The Monty Hall Problem** — why switching wins
+4. **Expected Value** — weighted average of outcomes (prize wheel)
+5. **Conditional Probability** — updating on new information (cards)
+6. **The Monty Hall Problem** — why switching wins
+7. **The Central Limit Theorem** — why averages go normal
+8. **Random Walks** — drift and the √n spread
 
-Each lesson is a sequence of `concept → problem → feedback` steps with 3–4 gradable
-problems. Mastery requires answering every problem correctly; two wrong in a row
-re-surfaces the lesson's own teaching material. Lessons unlock sequentially as you
-master them, or you can flip on **Free navigation** to jump to any lesson.
+Each lesson is one **concept** step (explore the simulation freely, with a short
+KaTeX lecture) followed by **five gradable problems** (`predict → run → feedback`).
+Every problem allows two attempts — first-try correct scores **green**, a second-try
+correct **yellow**, two misses **red**. A lesson **clears** (unlocking the next) once
+all five are green or yellow, and is **mastered** when all five are green. Two wrong
+answers in a row re-surface the lesson's own teaching material, and you can flip on
+**Free navigation** to jump to any lesson.
 
 ### Habit loop
 
 A **daily streak** counts consecutive calendar days with at least one active
 session (shown on the course screen alongside lessons mastered and best streak).
 Mastering a lesson triggers a milestone, and finishing the course is celebrated.
+
+Tap your avatar for a **profile** page that gathers every stat — streak, lessons
+mastered/cleared, problems solved, first-try rate — plus light/dark theme and
+navigation preferences. A **Sandbox** lets you play any simulation freely, no grading.
 
 ## Tech stack
 
@@ -125,7 +133,7 @@ The Firebase CLI files are scaffolded (`firebase.json`, `.firebaserc`,
 ```
 src/
   content/
-    lessons.ts              # all 7 lessons as typed data; answers computed by probability fns
+    lessons.ts              # all 8 lessons as typed data; answers computed by probability fns
     simData.ts              # prize-wheel definitions shared by content + sim
   lib/
     probability.ts          # owned probability functions (single source of truth for answers)
@@ -135,11 +143,12 @@ src/
     backend.ts              # auto-selects firebase vs local from env
     router.ts               # tiny hash router
   simulations/              # CoinFlip, DiceRoll, GaltonBoard, Birthday, ExpectedValue,
-                            #   ConditionalProbability, MontyHall (Canvas)
-  components/               # LessonPlayer, FeedbackBanner, CompletionScreen, etc.
-  hooks/                    # useAuth, useProgress (incl. streaks), useUnlockAll
+                            #   ConditionalProbability, MontyHall, RandomWalk, CLT (Canvas)
+  components/               # AppLayout, LessonPlayer, FeedbackBanner, CompletionScreen,
+                            #   LectureContent (KaTeX), ProfileMenu, QuestionBar, etc.
+  hooks/                    # useAuth, useProgress (incl. streaks), useUnlockAll, useTheme
   store/progress.ts         # mastery / unlock / next-lesson / streak logic (pure)
-  pages/                    # LoginPage, CoursePage, LessonPage
+  pages/                    # LoginPage, CoursePage, LessonPage, SandboxPage, ProfilePage
 ```
 
 `PRD.md` contains the full product requirements for all three phases.

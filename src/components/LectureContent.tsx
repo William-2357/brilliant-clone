@@ -16,7 +16,7 @@ function renderTeX(tex: string, displayMode: boolean): string {
 }
 
 /** Render a paragraph, turning inline `$...$` spans into KaTeX math. */
-function InlineText({ text }: { text: string }) {
+export function InlineText({ text }: { text: string }) {
   const parts = text.split(/\$([^$]+)\$/g);
   return (
     <>

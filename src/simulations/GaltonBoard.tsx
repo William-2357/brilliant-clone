@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import type { SimulationProps } from './types';
-import { cssVar, setupCanvas } from './canvasUtils';
+import { setupCanvas, simPalette } from './canvasUtils';
 import { binomialPmf } from '../lib/probability';
+import { getSimSpeed, scaledStep } from '../lib/simSpeed';
+import RangeField from '../components/RangeField';
 
 interface Ball {
   row: number;
@@ -25,7 +27,11 @@ export default function GaltonBoard({ config, mode, runSignal, onSettled }: Simu
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rows = config.rows ?? 12;
   const [balls, setBalls] = useState(config.balls ?? 200);
+  // Probability a ball bounces right at each peg. 0.5 is the classic symmetric
+  // board; the explore slider skews it so the bell curve shifts and leans.
+  const [p, setP] = useState(config.p ?? 0.5);
   const rafRef = useRef<number>(0);
+  const spawnAccRef = useRef(0);
   const lastRunRef = useRef(runSignal);
   // Cached canvas context/size — refreshed only on mount, resize, and run start,
   // never per frame (reassigning canvas.width each frame is what caused jank).
@@ -67,17 +73,13 @@ export default function GaltonBoard({ config, mode, runSignal, onSettled }: Simu
     if (!dims) return;
     const { ctx, width, height } = dims;
     const s = stateRef.current;
-    const accent = cssVar('--accent', '#0f9d8c');
-    const accent2 = cssVar('--accent-2', '#2e7df6');
-    const text = cssVar('--text', '#4a5a64');
-    const muted = cssVar('--muted', '#74838d');
-    const border = cssVar('--border', '#e0e6ea');
+    const c = simPalette();
     const g = geometry(width, height);
     ctx.clearRect(0, 0, width, height);
 
     // Pegs
-    ctx.fillStyle = muted;
-    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = c.muted;
+    ctx.globalAlpha = 0.45;
     for (let r = 0; r < rows; r++) {
       for (let i = 0; i <= r; i++) {
         const x = g.centerX + (i - r / 2) * g.binW;
@@ -89,31 +91,41 @@ export default function GaltonBoard({ config, mode, runSignal, onSettled }: Simu
     }
     ctx.globalAlpha = 1;
 
-    // Bins. Normalise to the expected peak count so bars visibly GROW toward a
-    // full bell curve as balls accumulate.
     const { binsTop, binAreaH } = g;
-    const expectedPeak = s.total > 0 ? s.total * binomialPmf(rows, Math.floor(rows / 2), 0.5) : 1;
+    // Scale bins to the expected tallest bin = the binomial mode for this bias.
+    const peakK = Math.max(0, Math.min(rows, Math.floor((rows + 1) * p)));
+    const expectedPeak = s.total > 0 ? s.total * binomialPmf(rows, peakK, p) : 1;
     const denom = Math.max(1, expectedPeak);
 
-    ctx.strokeStyle = border;
+    // Bin containers — empty troughs with dividers so balls visibly pile up inside.
+    ctx.strokeStyle = c.border;
+    ctx.lineWidth = 1;
+    for (let b = 0; b < g.bins; b++) {
+      const x = g.left + b * g.binW;
+      ctx.fillStyle = c.surface3;
+      ctx.fillRect(x + 1, binsTop, g.binW - 2, binAreaH);
+      ctx.strokeRect(x + 0.5, binsTop + 0.5, g.binW - 1, binAreaH);
+    }
+    // Shared baseline
     ctx.beginPath();
     ctx.moveTo(g.left, binsTop + binAreaH + 0.5);
     ctx.lineTo(width - g.left, binsTop + binAreaH + 0.5);
     ctx.stroke();
 
+    // Filled bins (balls that landed)
     const binGrad = ctx.createLinearGradient(0, binsTop, 0, binsTop + binAreaH);
-    binGrad.addColorStop(0, accent2);
-    binGrad.addColorStop(1, accent);
+    binGrad.addColorStop(0, c.accent2);
+    binGrad.addColorStop(1, c.accent);
     ctx.fillStyle = binGrad;
     for (let b = 0; b < g.bins; b++) {
       if (s.bins[b] <= 0) continue;
-      const h = Math.min(binAreaH, (s.bins[b] / denom) * binAreaH);
+      const h = Math.min(binAreaH - 2, (s.bins[b] / denom) * (binAreaH - 2));
       const x = g.left + b * g.binW;
-      ctx.fillRect(x + 1, binsTop + (binAreaH - h), g.binW - 2, h);
+      ctx.fillRect(x + 2, binsTop + (binAreaH - h - 1), g.binW - 4, h);
     }
 
-    // Active balls (no shadow — plain fills keep hundreds of sprites at 60 FPS)
-    ctx.fillStyle = accent2;
+    // Active balls
+    ctx.fillStyle = c.accent2;
     for (const ball of s.active) {
       const baseOffset = 2 * ball.k - ball.row;
       const xBase = g.centerX + baseOffset * (g.binW / 2);
@@ -124,7 +136,7 @@ export default function GaltonBoard({ config, mode, runSignal, onSettled }: Simu
       ctx.fill();
     }
 
-    ctx.fillStyle = text;
+    ctx.fillStyle = c.text;
     ctx.font = '13px system-ui, sans-serif';
     ctx.textAlign = 'left';
     ctx.fillText(`Dropped: ${s.landed} / ${s.total}`, g.left, 16);
@@ -142,17 +154,16 @@ export default function GaltonBoard({ config, mode, runSignal, onSettled }: Simu
     // Release the whole batch over ~160 frames (~2.7s) regardless of size, so a
     // 20-ball drop trickles and a 1000-ball drop pours — both finishing promptly.
     s.spawnPerFrame = Math.max(1, Math.round(total / 160));
-    const speed = 0.2; // rows advanced per frame (~5 frames per peg row)
+    spawnAccRef.current = 0;
 
     const tick = () => {
-      // Release new balls from the funnel.
+      // Speed multiplier read each frame so changes apply mid-drop.
+      const fall = 0.2 * getSimSpeed(); // rows advanced per frame (~5 frames per peg row)
+      // Release new balls from the funnel (rate scaled by the global speed).
+      const spawnNow = scaledStep(spawnAccRef, s.spawnPerFrame);
       let spawned = 0;
-      while (
-        spawned < s.spawnPerFrame &&
-        s.toSpawn > 0 &&
-        s.active.length < MAX_ON_SCREEN
-      ) {
-        s.active.push({ row: 0, prog: 0, k: 0, dir: Math.random() < 0.5 ? 1 : -1 });
+      while (spawned < spawnNow && s.toSpawn > 0 && s.active.length < MAX_ON_SCREEN) {
+        s.active.push({ row: 0, prog: 0, k: 0, dir: Math.random() < p ? 1 : -1 });
         s.toSpawn--;
         spawned++;
       }
@@ -160,7 +171,7 @@ export default function GaltonBoard({ config, mode, runSignal, onSettled }: Simu
       // Advance every animated ball.
       const survivors: Ball[] = [];
       for (const ball of s.active) {
-        ball.prog += speed;
+        ball.prog += fall;
         if (ball.prog >= 1) {
           if (ball.dir > 0) ball.k++;
           ball.row++;
@@ -170,7 +181,7 @@ export default function GaltonBoard({ config, mode, runSignal, onSettled }: Simu
             s.landed++;
             continue;
           }
-          ball.dir = Math.random() < 0.5 ? 1 : -1;
+          ball.dir = Math.random() < p ? 1 : -1;
         }
         survivors.push(ball);
       }
@@ -214,15 +225,16 @@ export default function GaltonBoard({ config, mode, runSignal, onSettled }: Simu
       <canvas ref={canvasRef} data-height="370" className="sim-canvas" />
       {mode === 'explore' && (
         <div className="sim-controls">
+          <RangeField label="Balls" value={balls} min={1} max={1000} onChange={setBalls} />
           <label className="sim-slider">
-            <span>Balls: {balls}</span>
+            <span>Right-bounce chance: {p.toFixed(2)}</span>
             <input
               type="range"
-              min={20}
-              max={1000}
-              step={20}
-              value={balls}
-              onChange={(e) => setBalls(Number(e.target.value))}
+              min={0}
+              max={1}
+              step={0.05}
+              value={p}
+              onChange={(e) => setP(Number(e.target.value))}
             />
           </label>
           <button type="button" className="btn" onClick={() => run(balls)}>

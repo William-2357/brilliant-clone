@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SimulationProps } from './types';
-import { cssVar, setupCanvas } from './canvasUtils';
+import { setupCanvas, simPalette } from './canvasUtils';
 import { readWheel, segmentColor, wheelEV } from '../content/simData';
+import { getSimSpeed, scaledStep } from '../lib/simSpeed';
+import RangeField from '../components/RangeField';
 
 /**
  * Expected value. Spins a weighted prize wheel many times and tracks the running
@@ -16,6 +18,7 @@ export default function ExpectedValue({ config, mode, runSignal, onSettled }: Si
   const scaleMax = useMemo(() => Math.max(...wheel.map((s) => s.value)) * 1.1 || 11, [wheel]);
   const [spins, setSpins] = useState(200);
   const rafRef = useRef<number>(0);
+  const accRef = useRef(0);
   const lastRunRef = useRef(runSignal);
   const stateRef = useRef({ sum: 0, processed: 0, total: 0, angle: 0, lastValue: 0 });
 
@@ -34,10 +37,7 @@ export default function ExpectedValue({ config, mode, runSignal, onSettled }: Si
     if (!canvas) return;
     const { ctx, width, height } = setupCanvas(canvas);
     const s = stateRef.current;
-    const cyan = cssVar('--cyan', '#36e2ff');
-    const text = cssVar('--text', '#b9b3cc');
-    const textH = cssVar('--text-h', '#ffffff');
-    const border = cssVar('--border', '#2c2542');
+    const c = simPalette();
     ctx.clearRect(0, 0, width, height);
 
     // Wheel
@@ -45,9 +45,6 @@ export default function ExpectedValue({ config, mode, runSignal, onSettled }: Si
     const cy = height / 2;
     const r = 72;
     let start = s.angle;
-    ctx.save();
-    ctx.shadowColor = 'rgba(177,77,255,0.5)';
-    ctx.shadowBlur = 18;
     wheel.forEach((seg, i) => {
       const end = start + seg.p * Math.PI * 2;
       ctx.beginPath();
@@ -56,6 +53,9 @@ export default function ExpectedValue({ config, mode, runSignal, onSettled }: Si
       ctx.closePath();
       ctx.fillStyle = segmentColor(i);
       ctx.fill();
+      ctx.strokeStyle = c.surface;
+      ctx.lineWidth = 2;
+      ctx.stroke();
       const mid = (start + end) / 2;
       ctx.fillStyle = '#fff';
       ctx.font = '700 13px system-ui, sans-serif';
@@ -64,9 +64,16 @@ export default function ExpectedValue({ config, mode, runSignal, onSettled }: Si
       ctx.fillText(seg.label, cx + Math.cos(mid) * r * 0.62, cy + Math.sin(mid) * r * 0.62);
       start = end;
     });
-    ctx.restore();
+    // Hub
+    ctx.beginPath();
+    ctx.fillStyle = c.surface;
+    ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = c.border;
+    ctx.lineWidth = 1;
+    ctx.stroke();
     // Pointer
-    ctx.fillStyle = textH;
+    ctx.fillStyle = c.textH;
     ctx.beginPath();
     ctx.moveTo(cx + r + 4, cy - 8);
     ctx.lineTo(cx + r + 4, cy + 8);
@@ -83,49 +90,40 @@ export default function ExpectedValue({ config, mode, runSignal, onSettled }: Si
     const barW = panelW;
     const barY = baseY;
     const barH = 22;
-    ctx.fillStyle = border;
+    ctx.fillStyle = c.surface3;
     ctx.beginPath();
     ctx.roundRect(barX, barY, barW, barH, 11);
     ctx.fill();
     if (avg > 0) {
-      const grad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
-      grad.addColorStop(0, '#b14dff');
-      grad.addColorStop(1, '#ff4dd8');
-      ctx.save();
-      ctx.shadowColor = '#ff4dd8';
-      ctx.shadowBlur = 14;
-      ctx.fillStyle = grad;
+      ctx.fillStyle = c.accent;
       ctx.beginPath();
       ctx.roundRect(barX, barY, Math.max(barH, (barW * Math.min(avg, scaleMax)) / scaleMax), barH, 11);
       ctx.fill();
-      ctx.restore();
     }
 
     // EV target line (hidden during predict phase)
     const showTarget = mode === 'explore' || s.processed > 0;
     if (showTarget) {
       const tx = barX + (barW * EV) / scaleMax;
-      ctx.strokeStyle = cyan;
-      ctx.shadowColor = cyan;
-      ctx.shadowBlur = 6;
+      ctx.strokeStyle = c.accent2;
       ctx.setLineDash([4, 4]);
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.moveTo(tx, barY - 8);
       ctx.lineTo(tx, barY + barH + 8);
       ctx.stroke();
-      ctx.shadowBlur = 0;
       ctx.setLineDash([]);
-      ctx.fillStyle = cyan;
+      ctx.fillStyle = c.accent2;
       ctx.font = '11px system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(`EV ${EV.toFixed(2)}`, tx, barY - 12);
     }
 
-    ctx.fillStyle = textH;
+    ctx.fillStyle = c.textH;
     ctx.font = '700 26px system-ui, sans-serif';
     ctx.textAlign = 'left';
     ctx.fillText(`$${avg.toFixed(3)}`, panelX, baseY - 18);
-    ctx.fillStyle = text;
+    ctx.fillStyle = c.text;
     ctx.font = '12px system-ui, sans-serif';
     ctx.fillText(`avg over ${s.processed} spins`, panelX, baseY - 38);
   }
@@ -136,19 +134,20 @@ export default function ExpectedValue({ config, mode, runSignal, onSettled }: Si
     s.sum = 0;
     s.processed = 0;
     s.total = total;
+    accRef.current = 0;
     const small = total <= 20;
-    const perFrame = small ? 1 : Math.ceil(total / 80);
-    let frame = 0;
+    const perFrame = small ? 1 / 5 : Math.ceil(total / 80);
     const tick = () => {
-      const step = small ? (frame % 5 === 0 ? 1 : 0) : perFrame;
-      for (let i = 0; i < step && s.processed < total; i++) {
+      const todo = scaledStep(accRef, perFrame);
+      for (let i = 0; i < todo && s.processed < total; i++) {
         const seg = wheel[sampleSegment()];
         s.sum += seg.value;
         s.processed++;
-        s.angle += 0.6;
       }
+      // Spin the wheel at a steady, readable pace (scaled by the global speed)
+      // while the batch runs, rather than by the number of samples processed.
+      if (s.processed < total) s.angle += 0.22 * getSimSpeed();
       draw();
-      frame++;
       if (s.processed < total) rafRef.current = requestAnimationFrame(tick);
       else onSettled?.();
     };
@@ -179,16 +178,7 @@ export default function ExpectedValue({ config, mode, runSignal, onSettled }: Si
       <canvas ref={canvasRef} data-height="200" className="sim-canvas" />
       {mode === 'explore' && (
         <div className="sim-controls">
-          <label className="sim-slider">
-            <span>Spins: {spins}</span>
-            <input
-              type="range"
-              min={10}
-              max={1000}
-              value={spins}
-              onChange={(e) => setSpins(Number(e.target.value))}
-            />
-          </label>
+          <RangeField label="Spins" value={spins} min={1} max={1000} onChange={setSpins} />
           <button type="button" className="btn" onClick={() => run(spins)}>
             Spin {spins}×
           </button>

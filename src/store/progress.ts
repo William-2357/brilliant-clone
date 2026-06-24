@@ -1,6 +1,7 @@
 import type { Lesson, LessonProgress, LessonState, ProblemResult } from '../types/lesson';
 import type { ProgressMap, UserStats } from '../lib/storage';
 import { gradableSteps } from '../content/lessons';
+import { randomSeed } from '../lib/rng';
 
 /** Local-time calendar day as YYYY-MM-DD (stable for streak comparisons). */
 export function dayKey(ts: number): string {
@@ -51,6 +52,8 @@ export function initialProgress(firstStepId: string): LessonProgress {
     completedProblemIds: [],
     completedAt: null,
     lastVisited: null,
+    seed: randomSeed(),
+    attempt: 0,
   };
 }
 
@@ -127,6 +130,10 @@ export interface CourseStats {
   totalProblems: number;
   questionsAnswered: number;
   masteryFraction: number;
+  /** Problems answered perfectly on the first try (green). */
+  problemsGreen: number;
+  /** Problems with any recorded result (green/yellow/red) — the first-try denominator. */
+  problemsResolved: number;
 }
 
 /** Roll per-lesson progress up into the account-level numbers shown in the UI. */
@@ -136,6 +143,8 @@ export function courseStats(lessons: Lesson[], all: ProgressMap): CourseStats {
   let problemsSolved = 0;
   let totalProblems = 0;
   let questionsAnswered = 0;
+  let problemsGreen = 0;
+  let problemsResolved = 0;
   for (const lesson of lessons) {
     if (lesson.status !== 'built') continue;
     lessonsBuilt += 1;
@@ -144,10 +153,12 @@ export function courseStats(lessons: Lesson[], all: ProgressMap): CourseStats {
     const p = all[lesson.id];
     if (!p) continue;
     if (p.mastered) lessonsMastered += 1;
-    problemsSolved += problems.filter((s) => {
+    for (const s of problems) {
       const r = problemResult(p, s.id);
-      return r === 'green' || r === 'yellow';
-    }).length;
+      if (r) problemsResolved += 1;
+      if (r === 'green') problemsGreen += 1;
+      if (r === 'green' || r === 'yellow') problemsSolved += 1;
+    }
     questionsAnswered += p.attempts;
   }
   return {
@@ -157,7 +168,33 @@ export function courseStats(lessons: Lesson[], all: ProgressMap): CourseStats {
     totalProblems,
     questionsAnswered,
     masteryFraction: totalProblems === 0 ? 0 : problemsSolved / totalProblems,
+    problemsGreen,
+    problemsResolved,
   };
+}
+
+/**
+ * Cumulative fraction of all course problems solved after each lesson in order,
+ * with a leading 0 so the sparkline starts at the origin. Monotonic and honest:
+ * it rises as lessons are completed and plateaus where you haven't gone yet —
+ * the same "climbs then stabilizes" shape as the brand mark.
+ */
+export function masteryCurve(lessons: Lesson[], all: ProgressMap): number[] {
+  const built = lessons.filter((l) => l.status === 'built');
+  let total = 0;
+  for (const l of built) total += gradableSteps(l).length;
+  const points = [0];
+  if (total === 0) return points;
+  let cumulative = 0;
+  for (const lesson of built) {
+    const p = all[lesson.id];
+    for (const s of gradableSteps(lesson)) {
+      const r = problemResult(p, s.id);
+      if (r === 'green' || r === 'yellow') cumulative += 1;
+    }
+    points.push(cumulative / total);
+  }
+  return points;
 }
 
 /** Fraction of a single lesson's gradable questions that are green or yellow (0..1). */

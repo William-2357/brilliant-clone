@@ -1,4 +1,5 @@
 import { expectedValue, type WheelSegment } from '../lib/probability';
+import { cssVar } from '../simulations/canvasUtils';
 
 /**
  * Prize wheels for Lesson 5 (Expected Value). A wheel is encoded into the flat
@@ -9,8 +10,6 @@ export interface NamedWheelSegment extends WheelSegment {
   label: string;
 }
 
-const PALETTE = ['#7b5cff', '#b14dff', '#ff4dd8', '#36e2ff', '#5cff9d', '#ffd24d'];
-
 /** Default wheel shown while exploring the concept. */
 export const EV_WHEEL: NamedWheelSegment[] = [
   { value: 1, p: 0.5, label: '$1' },
@@ -18,8 +17,17 @@ export const EV_WHEEL: NamedWheelSegment[] = [
   { value: 10, p: 0.2, label: '$10' },
 ];
 
+/** Distinct but on-brand wheel segment colors (read from CSS tokens at paint time). */
 export function segmentColor(i: number): string {
-  return PALETTE[i % PALETTE.length];
+  const colors = [
+    cssVar('--accent', '#0f9d8c'),
+    cssVar('--accent-2', '#2e7df6'),
+    cssVar('--good', '#16a34a'),
+    cssVar('--warn', '#e0930a'),
+    cssVar('--cyan', '#0284c7'),
+    cssVar('--accent-strong', '#0b8576'),
+  ];
+  return colors[i % colors.length];
 }
 
 /** Encode a wheel into simConfig numbers. */

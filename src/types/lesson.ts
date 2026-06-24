@@ -5,9 +5,19 @@ export type SimulationType =
   | 'birthday'
   | 'expectedValue'
   | 'conditional'
-  | 'montyHall';
+  | 'montyHall'
+  | 'randomWalk'
+  | 'clt';
 
 export type StepType = 'concept' | 'problem';
+
+/**
+ * How the learner commits a prediction on a problem step:
+ *   numeric — type a single number (the default, used by every original lesson)
+ *   order   — drag a set of outcomes into a most→least-likely ranking
+ *   draw    — sketch a distribution's bar heights before the truth is revealed
+ */
+export type InteractionType = 'numeric' | 'order' | 'draw';
 
 export interface StepFeedback {
   correct: string;
@@ -47,6 +57,19 @@ export interface LessonStep {
   /** Human label for the expected answer, e.g. "fraction" or "probability". */
   unit?: string;
   feedback?: StepFeedback;
+
+  /** Prediction modality for problem steps; defaults to 'numeric' when omitted. */
+  interaction?: InteractionType;
+  /** order: the outcomes to rank (shown in this order before the learner sorts). */
+  orderItems?: number[];
+  /** order: the correct most→least-likely ranking, computed from probability.ts. */
+  answerOrder?: number[];
+  /** order: optional display text per item id (otherwise the id number is shown). */
+  orderLabels?: Record<number, string>;
+  /** draw: category labels for each bar the learner sketches. */
+  drawCategories?: (number | string)[];
+  /** draw: the true normalized distribution over those categories (sums to 1). */
+  answerShape?: number[];
 }
 
 export type LessonStatus = 'built' | 'coming-soon';
@@ -87,4 +110,8 @@ export interface LessonProgress {
   completedProblemIds: string[];
   completedAt: number | null;
   lastVisited: number | null;
+  /** Stable per-learner base for generated questions. */
+  seed?: number;
+  /** Replay counter — advances the question pool each time the lesson is restarted. */
+  attempt?: number;
 }

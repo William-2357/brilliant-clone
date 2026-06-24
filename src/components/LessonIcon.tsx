@@ -49,17 +49,6 @@ const ICONS: Record<string, IconDef> = {
       </>
     ),
   },
-  'l4-birthday': {
-    color: '#ec4899',
-    node: (
-      <>
-        <path d="M4 20h16v-7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7Z" {...S} />
-        <path d="M4 15c1.6 0 1.6 1.4 3.2 1.4S8.8 15 10.4 15s1.6 1.4 3.2 1.4S15.2 15 16.8 15s1.6 1.4 3.2 1.4" {...S} />
-        <line x1="12" y1="4" x2="12" y2="8.5" {...S} />
-        <circle cx="12" cy="3.3" r="1.1" fill="currentColor" stroke="none" />
-      </>
-    ),
-  },
   'l5-expected-value': {
     color: '#8b5cf6',
     node: (
@@ -95,6 +84,26 @@ const ICONS: Record<string, IconDef> = {
       </>
     ),
   },
+  'l8-random-walk': {
+    color: '#14b8a6',
+    node: (
+      <>
+        <path d="M3 15l3-4 3 4 3-7 3 5 3-8 3 5" {...S} />
+        <circle cx="3" cy="15" r="1.1" fill="currentColor" stroke="none" />
+        <circle cx="21" cy="10" r="1.1" fill="currentColor" stroke="none" />
+      </>
+    ),
+  },
+  'l9-clt': {
+    color: '#6366f1',
+    node: (
+      <>
+        <path d="M3 19c4.5 0 4-12 9-12s4.5 12 9 12" {...S} />
+        <line x1="3" y1="19.5" x2="21" y2="19.5" {...S} />
+        <line x1="12" y1="7.5" x2="12" y2="19.5" {...S} />
+      </>
+    ),
+  },
 };
 
 const FALLBACK: IconDef = {
@@ -108,36 +117,49 @@ const FALLBACK: IconDef = {
   ),
 };
 
-// eslint-disable-next-line react-refresh/only-export-components
-export function lessonIconColor(lessonId: string): string {
-  return (ICONS[lessonId] ?? FALLBACK).color;
-}
+/*
+ * Lesson glyphs are now a single ink color. We deliberately dropped the
+ * per-lesson rainbow tint — a row of multi-colored pastel chips is a strong
+ * "templated" tell. Glyphs inherit `currentColor` from CSS so context (e.g. an
+ * active nav item) can recolor them; progress rings use a single accent.
+ */
 
 interface Props {
   lessonId: string;
   size?: number;
-  /** When true, draw a tinted rounded tile behind the glyph. */
+  /** Kept for API compatibility; glyphs no longer draw a tinted tile. */
   tile?: boolean;
   className?: string;
 }
 
 export default function LessonIcon({ lessonId, size = 24, tile = false, className }: Props) {
   const def = ICONS[lessonId] ?? FALLBACK;
-  const svg = (
-    <svg width={size} height={size} viewBox="0 0 24 24" style={{ color: def.color }} aria-hidden>
-      {def.node}
-    </svg>
-  );
-  if (!tile) return <span className={className}>{svg}</span>;
   return (
-    <span
-      className={`icon-tile ${className ?? ''}`}
-      style={{
-        color: def.color,
-        background: `color-mix(in srgb, ${def.color} 16%, transparent)`,
-      }}
-    >
-      {svg}
+    <span className={`lesson-glyph ${tile ? 'glyph-box' : ''} ${className ?? ''}`}>
+      <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden>
+        {def.node}
+      </svg>
     </span>
+  );
+}
+
+/** Outline lock used for locked lessons (replaces the emoji padlock). */
+export function LockIcon({ size = 16, className }: { size?: number; className?: string }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <rect x="5" y="11" width="14" height="9" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </svg>
   );
 }

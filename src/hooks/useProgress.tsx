@@ -146,6 +146,9 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
         const fresh = initialProgress(firstStepId);
         persist(lesson.id, {
           ...fresh,
+          // Keep the learner's base but advance the pool so a replay shows new questions.
+          seed: prev?.seed ?? fresh.seed,
+          attempt: (prev?.attempt ?? 0) + 1,
           attempts: prev?.attempts ?? 0,
           lastVisited: Date.now(),
         });

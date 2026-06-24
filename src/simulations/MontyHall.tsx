@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { SimulationProps } from './types';
-import { cssVar, setupCanvas } from './canvasUtils';
+import { setupCanvas, simPalette } from './canvasUtils';
+import { scaledStep } from '../lib/simSpeed';
+import RangeField from '../components/RangeField';
 
 /**
  * Monty Hall. Plays the game many times for a fixed strategy and tracks the
@@ -14,6 +16,7 @@ export default function MontyHall({ config, mode, runSignal, onSettled }: Simula
   const [strategy, setStrategy] = useState<'switch' | 'stay'>('switch');
   const [games, setGames] = useState(500);
   const rafRef = useRef<number>(0);
+  const accRef = useRef(0);
   const lastRunRef = useRef(runSignal);
   const stateRef = useRef({
     wins: 0,
@@ -29,9 +32,6 @@ export default function MontyHall({ config, mode, runSignal, onSettled }: Simula
   function playGame(useSwitch: boolean) {
     const car = Math.floor(Math.random() * doors);
     const pick = Math.floor(Math.random() * doors);
-    // The host opens every door except the player's and one other, always
-    // revealing goats. The single remaining "other" door is the car when the
-    // player guessed wrong, or a random goat when the player guessed right.
     let other: number;
     if (pick === car) {
       do {
@@ -40,7 +40,6 @@ export default function MontyHall({ config, mode, runSignal, onSettled }: Simula
     } else {
       other = car;
     }
-    // Pick one opened door (a goat that is neither the pick nor the other) for display.
     let opened = -1;
     for (let d = 0; d < doors; d++) {
       if (d !== pick && d !== other) {
@@ -57,10 +56,7 @@ export default function MontyHall({ config, mode, runSignal, onSettled }: Simula
     if (!canvas) return;
     const { ctx, width, height } = setupCanvas(canvas);
     const s = stateRef.current;
-    const cyan = cssVar('--cyan', '#36e2ff');
-    const text = cssVar('--text', '#b9b3cc');
-    const textH = cssVar('--text-h', '#ffffff');
-    const border = cssVar('--border', '#2c2542');
+    const c = simPalette();
     ctx.clearRect(0, 0, width, height);
 
     // Doors
@@ -75,25 +71,24 @@ export default function MontyHall({ config, mode, runSignal, onSettled }: Simula
       const x = startX + d * (dw + gap);
       const isOpened = d === s.opened && s.processed > 0;
       const isFinal = d === s.final && s.processed > 0;
-      ctx.fillStyle = isOpened ? '#0f0c1a' : '#1b1530';
-      ctx.strokeStyle = isFinal ? cyan : border;
+      const isPick = d === s.pick && s.processed > 0;
+
+      ctx.fillStyle = isOpened ? c.surface3 : c.surface2;
+      ctx.strokeStyle = isFinal ? c.accent : isPick ? c.accent2 : c.border;
       ctx.lineWidth = isFinal ? 2 : 1;
-      if (isFinal) {
-        ctx.shadowColor = cyan;
-        ctx.shadowBlur = 14;
-      }
       ctx.beginPath();
       ctx.roundRect(x, dy, dw, dh, 8);
       ctx.fill();
       ctx.stroke();
-      ctx.shadowBlur = 0;
+
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.font = '24px system-ui, sans-serif';
       if (s.processed > 0 && (isOpened || isFinal)) {
+        ctx.font = '22px system-ui, sans-serif';
         ctx.fillText(d === s.car ? '\u{1F697}' : '\u{1F410}', x + dw / 2, dy + dh / 2);
       } else {
-        ctx.fillStyle = text;
+        ctx.fillStyle = c.textH;
+        ctx.font = '600 18px system-ui, sans-serif';
         ctx.fillText(`${d + 1}`, x + dw / 2, dy + dh / 2);
       }
     }
@@ -104,29 +99,22 @@ export default function MontyHall({ config, mode, runSignal, onSettled }: Simula
     const barW = width - 48;
     const barY = 124;
     const barH = 22;
-    ctx.fillStyle = border;
+    ctx.fillStyle = c.surface3;
     ctx.beginPath();
     ctx.roundRect(barX, barY, barW, barH, 11);
     ctx.fill();
     if (rate > 0) {
-      const grad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
-      grad.addColorStop(0, '#b14dff');
-      grad.addColorStop(1, '#ff4dd8');
-      ctx.save();
-      ctx.shadowColor = '#ff4dd8';
-      ctx.shadowBlur = 14;
-      ctx.fillStyle = grad;
+      ctx.fillStyle = c.accent;
       ctx.beginPath();
       ctx.roundRect(barX, barY, Math.max(barH, barW * rate), barH, 11);
       ctx.fill();
-      ctx.restore();
     }
 
-    ctx.fillStyle = textH;
+    ctx.fillStyle = c.textH;
     ctx.font = '700 26px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(rate.toFixed(3), width / 2, barY + barH + 30);
-    ctx.fillStyle = text;
+    ctx.fillStyle = c.text;
     ctx.font = '12px system-ui, sans-serif';
     ctx.fillText(
       s.processed > 0
@@ -144,12 +132,12 @@ export default function MontyHall({ config, mode, runSignal, onSettled }: Simula
     s.processed = 0;
     s.total = total;
     s.strategy = strat;
+    accRef.current = 0;
     const small = total <= 20;
-    const perFrame = small ? 1 : Math.ceil(total / 80);
-    let frame = 0;
+    const perFrame = small ? 1 / 6 : Math.ceil(total / 80);
     const tick = () => {
-      const step = small ? (frame % 6 === 0 ? 1 : 0) : perFrame;
-      for (let i = 0; i < step && s.processed < total; i++) {
+      const todo = scaledStep(accRef, perFrame);
+      for (let i = 0; i < todo && s.processed < total; i++) {
         const g = playGame(strat === 'switch');
         if (g.win) s.wins++;
         s.car = g.car;
@@ -159,7 +147,6 @@ export default function MontyHall({ config, mode, runSignal, onSettled }: Simula
         s.processed++;
       }
       draw();
-      frame++;
       if (s.processed < total) rafRef.current = requestAnimationFrame(tick);
       else onSettled?.();
     };
@@ -207,17 +194,7 @@ export default function MontyHall({ config, mode, runSignal, onSettled }: Simula
               Always stay
             </button>
           </div>
-          <label className="sim-slider">
-            <span>Games: {games}</span>
-            <input
-              type="range"
-              min={10}
-              max={2000}
-              step={10}
-              value={games}
-              onChange={(e) => setGames(Number(e.target.value))}
-            />
-          </label>
+          <RangeField label="Games" value={games} min={1} max={2000} onChange={setGames} />
           <button type="button" className="btn" onClick={() => run(games, strategy)}>
             Play {games}×
           </button>

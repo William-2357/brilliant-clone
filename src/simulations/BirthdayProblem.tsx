@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { SimulationProps } from './types';
-import { cssVar, setupCanvas } from './canvasUtils';
+import { setupCanvas, simPalette } from './canvasUtils';
 import { birthdayProb } from '../lib/probability';
+import { scaledStep } from '../lib/simSpeed';
 
 const MAX_N = 50;
 
@@ -15,6 +16,7 @@ export default function BirthdayProblem({ config, mode, runSignal, onSettled }: 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [people, setPeople] = useState(config.people ?? 23);
   const rafRef = useRef<number>(0);
+  const accRef = useRef(0);
   const lastRunRef = useRef(runSignal);
   const stateRef = useRef({ collisions: 0, processed: 0, total: 0, n: config.people ?? 23 });
 
@@ -33,45 +35,61 @@ export default function BirthdayProblem({ config, mode, runSignal, onSettled }: 
     if (!canvas) return;
     const { ctx, width, height } = setupCanvas(canvas);
     const s = stateRef.current;
-    const accent2 = cssVar('--accent-2', '#ff4dd8');
-    const cyan = cssVar('--cyan', '#36e2ff');
-    const text = cssVar('--text', '#b9b3cc');
-    const textH = cssVar('--text-h', '#ffffff');
-    const border = cssVar('--border', '#2c2542');
+    const c = simPalette();
     ctx.clearRect(0, 0, width, height);
 
-    const padL = 34;
-    const padR = 14;
-    const padT = 14;
-    const padB = 26;
+    const padL = 40;
+    const padR = 16;
+    const padT = 28;
+    const padB = 32;
     const plotW = width - padL - padR;
     const plotH = height - padT - padB;
     const xOf = (n: number) => padL + ((n - 2) / (MAX_N - 2)) * plotW;
     const yOf = (p: number) => padT + (1 - p) * plotH;
 
-    // Axes
-    ctx.strokeStyle = border;
+    const n = mode === 'explore' ? people : s.n;
+    const revealCurve = mode === 'explore' || s.processed > 0;
+
+    // Plot background grid
+    ctx.strokeStyle = c.gridLine;
     ctx.lineWidth = 1;
+    for (let p = 0.25; p < 1; p += 0.25) {
+      ctx.beginPath();
+      ctx.moveTo(padL, yOf(p));
+      ctx.lineTo(padL + plotW, yOf(p));
+      ctx.stroke();
+    }
+
+    // Axes
+    ctx.strokeStyle = c.border;
     ctx.beginPath();
     ctx.moveTo(padL, padT);
     ctx.lineTo(padL, padT + plotH);
     ctx.lineTo(padL + plotW, padT + plotH);
     ctx.stroke();
-    ctx.fillStyle = text;
+
+    // Y-axis labels
+    ctx.fillStyle = c.muted;
     ctx.font = '10px system-ui, sans-serif';
     ctx.textAlign = 'right';
-    [0, 0.5, 1].forEach((p) => {
-      ctx.fillText(p.toFixed(1), padL - 5, yOf(p) + 3);
+    ctx.textBaseline = 'middle';
+    [0, 0.25, 0.5, 0.75, 1].forEach((p) => {
+      ctx.fillText(`${Math.round(p * 100)}%`, padL - 6, yOf(p));
     });
-    ctx.textAlign = 'center';
-    ctx.fillText('people in room', padL + plotW / 2, height - 6);
 
-    const n = mode === 'explore' ? people : s.n;
-    const revealCurve = mode === 'explore' || s.processed > 0;
+    // X-axis ticks
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    [2, 15, 30, 45, 50].forEach((k) => {
+      ctx.fillText(String(k), xOf(k), padT + plotH + 4);
+    });
+    ctx.fillStyle = c.muted;
+    ctx.font = '10px system-ui, sans-serif';
+    ctx.fillText('people in room', padL + plotW / 2, height - 6);
 
     // Theoretical curve
     if (revealCurve) {
-      ctx.strokeStyle = cyan;
+      ctx.strokeStyle = c.accent2;
       ctx.lineWidth = 2;
       ctx.beginPath();
       for (let k = 2; k <= MAX_N; k++) {
@@ -84,7 +102,8 @@ export default function BirthdayProblem({ config, mode, runSignal, onSettled }: 
     }
 
     // Marker at current n
-    ctx.strokeStyle = border;
+    ctx.strokeStyle = c.borderStrong;
+    ctx.lineWidth = 1;
     ctx.setLineDash([3, 3]);
     ctx.beginPath();
     ctx.moveTo(xOf(n), padT);
@@ -95,30 +114,31 @@ export default function BirthdayProblem({ config, mode, runSignal, onSettled }: 
     // Simulated fraction point
     const frac = s.processed > 0 ? s.collisions / s.processed : 0;
     if (s.processed > 0) {
-      ctx.fillStyle = accent2;
-      ctx.shadowColor = accent2;
-      ctx.shadowBlur = 12;
+      ctx.fillStyle = c.accent;
       ctx.beginPath();
       ctx.arc(xOf(n), yOf(frac), 5, 0, Math.PI * 2);
       ctx.fill();
-      ctx.shadowBlur = 0;
+      ctx.strokeStyle = c.surface;
+      ctx.lineWidth = 2;
+      ctx.stroke();
     }
 
-    // Readout
-    ctx.fillStyle = textH;
-    ctx.font = '700 22px system-ui, sans-serif';
-    ctx.textAlign = 'left';
+    // Readout — top-right so it never overlaps the curve
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = c.textH;
+    ctx.font = '700 20px system-ui, sans-serif';
     ctx.fillText(
-      s.processed > 0 ? frac.toFixed(3) : `room of ${n}`,
-      padL + 6,
-      padT + 22,
+      s.processed > 0 ? frac.toFixed(3) : `${n} people`,
+      width - padR,
+      padT - 8,
     );
-    ctx.fillStyle = text;
-    ctx.font = '12px system-ui, sans-serif';
+    ctx.fillStyle = c.text;
+    ctx.font = '11px system-ui, sans-serif';
     ctx.fillText(
       s.processed > 0 ? `${s.collisions} shared / ${s.processed} rooms` : 'press run to simulate',
-      padL + 6,
-      padT + 40,
+      width - padR,
+      padT + 8,
     );
   }
 
@@ -129,9 +149,11 @@ export default function BirthdayProblem({ config, mode, runSignal, onSettled }: 
     s.processed = 0;
     s.total = trials;
     s.n = n;
+    accRef.current = 0;
     const tick = () => {
       const chunk = Math.ceil(trials / 70);
-      for (let i = 0; i < chunk && s.processed < trials; i++) {
+      const todo = scaledStep(accRef, chunk);
+      for (let i = 0; i < todo && s.processed < trials; i++) {
         if (hasSharedBirthday(n)) s.collisions++;
         s.processed++;
       }
@@ -163,7 +185,7 @@ export default function BirthdayProblem({ config, mode, runSignal, onSettled }: 
 
   return (
     <div className="sim">
-      <canvas ref={canvasRef} data-height="240" className="sim-canvas" />
+      <canvas ref={canvasRef} data-height="260" className="sim-canvas" />
       {mode === 'explore' && (
         <div className="sim-controls">
           <label className="sim-slider">

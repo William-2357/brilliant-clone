@@ -7,6 +7,8 @@ import AppLayout from './components/AppLayout';
 import LoginPage from './pages/LoginPage';
 import CoursePage from './pages/CoursePage';
 import LessonPage from './pages/LessonPage';
+import SandboxPage from './pages/SandboxPage';
+import ProfilePage from './pages/ProfilePage';
 import './App.css';
 
 function Redirect({ to }: { to: string }) {
@@ -37,6 +39,26 @@ function Routes() {
       <AuthGuard>
         <AppLayout activeLessonId={null}>
           <CoursePage />
+        </AppLayout>
+      </AuthGuard>
+    );
+  }
+
+  if (path === '/sandbox') {
+    return (
+      <AuthGuard>
+        <AppLayout activeLessonId={null}>
+          <SandboxPage />
+        </AppLayout>
+      </AuthGuard>
+    );
+  }
+
+  if (path === '/profile') {
+    return (
+      <AuthGuard>
+        <AppLayout activeLessonId={null}>
+          <ProfilePage />
         </AppLayout>
       </AuthGuard>
     );

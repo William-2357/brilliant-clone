@@ -8,6 +8,8 @@ import BirthdayProblem from './BirthdayProblem';
 import ExpectedValue from './ExpectedValue';
 import ConditionalProbability from './ConditionalProbability';
 import MontyHall from './MontyHall';
+import RandomWalk from './RandomWalk';
+import CLT from './CLT';
 
 export const simulations: Record<SimulationType, ComponentType<SimulationProps>> = {
   coinFlip: CoinFlip,
@@ -17,4 +19,6 @@ export const simulations: Record<SimulationType, ComponentType<SimulationProps>>
   expectedValue: ExpectedValue,
   conditional: ConditionalProbability,
   montyHall: MontyHall,
+  randomWalk: RandomWalk,
+  clt: CLT,
 };

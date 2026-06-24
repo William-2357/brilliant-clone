@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Lesson, LessonStep } from '../types/lesson';
 import { lessons, gradableSteps } from '../content/lessons';
+import { generateProblem } from '../content/problemTemplates';
+import { hashString } from '../lib/rng';
 import { recommendNext, allQuestionsResolved } from '../store/progress';
 import { useProgress } from '../hooks/useProgress';
 import { simulations } from '../simulations';
@@ -11,6 +13,9 @@ import MilestoneBanner from './MilestoneBanner';
 import CompletionScreen from './CompletionScreen';
 import QuestionBar from './QuestionBar';
 import LectureContent from './LectureContent';
+import OrderItems from './OrderItems';
+import DrawDistribution from './DrawDistribution';
+import SpeedControl from './SpeedControl';
 import { navigate } from '../lib/router';
 
 type Phase = 'predict' | 'running' | 'feedback';
@@ -26,6 +31,9 @@ export default function LessonPlayer({ lesson }: Props) {
   const [stepIndex, setStepIndex] = useState(0);
   const [phase, setPhase] = useState<Phase>('predict');
   const [guess, setGuess] = useState('');
+  // State for the non-numeric interactions: a ranking and a sketched shape.
+  const [order, setOrder] = useState<number[]>([]);
+  const [drawn, setDrawn] = useState<number[]>([]);
   const [inputError, setInputError] = useState('');
   const [correct, setCorrect] = useState(false);
   // True once a question has reached its terminal outcome (green/yellow/red).
@@ -35,6 +43,12 @@ export default function LessonPlayer({ lesson }: Props) {
   const [milestone, setMilestone] = useState('');
   const [completed, setCompleted] = useState(false);
   const [showLecture, setShowLecture] = useState(false);
+  // Generated-question pool cursor: `seed` is the learner's stable base, `attempt`
+  // advances on each lesson replay, and `retry` advances on the second try of a
+  // question — so retries and replays pull a different problem instead of repeating.
+  const [seed, setSeed] = useState<number>(() => progress.get(lesson.id)?.seed ?? hashString(lesson.id));
+  const [attempt, setAttempt] = useState<number>(() => progress.get(lesson.id)?.attempt ?? 0);
+  const [retry, setRetry] = useState(0);
 
   // Number of attempts spent on the current question, and the last lock outcome.
   const triesRef = useRef(0);
@@ -45,6 +59,8 @@ export default function LessonPlayer({ lesson }: Props) {
     const p = progress.ensureStarted(lesson);
     const idx = lesson.steps.findIndex((s) => s.id === p.currentStepId);
     /* eslint-disable react-hooks/set-state-in-effect */
+    setSeed(p.seed ?? hashString(lesson.id));
+    setAttempt(p.attempt ?? 0);
     setStepIndex(idx >= 0 ? idx : 0);
     setCompleted(allQuestionsResolved(lesson, p));
     setMilestone('');
@@ -61,6 +77,7 @@ export default function LessonPlayer({ lesson }: Props) {
     setShowLecture(false);
     setCorrect(false);
     setResolved(false);
+    setRetry(0);
     triesRef.current = 0;
     lastCorrectRef.current = false;
     // Reset the run trigger so a freshly shown problem does NOT auto-run on mount.
@@ -68,7 +85,25 @@ export default function LessonPlayer({ lesson }: Props) {
     setRunSignal(0);
   }
 
-  const step = lesson.steps[stepIndex];
+  const baseStep = lesson.steps[stepIndex];
+  // Overlay the generated (parameterized) problem for this slot + seed. Concept
+  // steps and slots without a template fall back to the static step.
+  const step = useMemo(
+    () => (baseStep ? generateProblem(lesson.id, baseStep, seed, attempt, retry) : baseStep),
+    [lesson.id, baseStep, seed, attempt, retry],
+  );
+
+  // Seed the order/draw interaction state whenever the visible (generated) step changes.
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setOrder(step?.interaction === 'order' && step.orderItems ? step.orderItems.slice() : []);
+    setDrawn(
+      step?.interaction === 'draw' && step.drawCategories
+        ? new Array(step.drawCategories.length).fill(0)
+        : [],
+    );
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [step]);
 
   function goToStep(idx: number) {
     const clamped = Math.max(0, Math.min(lesson.steps.length - 1, idx));
@@ -83,17 +118,48 @@ export default function LessonPlayer({ lesson }: Props) {
     }
   }
 
-  function lockPrediction(currentStep: LessonStep) {
+  // Grade the committed prediction for whichever interaction this step uses.
+  // Returns null when the input is invalid (an error message is set instead).
+  function gradeInteraction(currentStep: LessonStep): boolean | null {
+    const interaction = currentStep.interaction ?? 'numeric';
+    if (interaction === 'order') {
+      const target = currentStep.answerOrder ?? [];
+      return order.length === target.length && order.every((v, i) => v === target[i]);
+    }
+    if (interaction === 'draw') {
+      const truth = currentStep.answerShape ?? [];
+      const total = drawn.reduce((a, b) => a + b, 0);
+      if (total <= 0) {
+        setInputError('Sketch the bars first.');
+        return null;
+      }
+      const dist = drawn.map((h) => h / total);
+      const tv = 0.5 * dist.reduce((acc, d, i) => acc + Math.abs(d - (truth[i] ?? 0)), 0);
+      return tv <= (currentStep.tolerance ?? 0.15);
+    }
     const value = parseFloat(guess);
     if (Number.isNaN(value)) {
       setInputError('Enter a number (e.g. 0.5).');
-      return;
+      return null;
     }
+    return isCorrect(value, currentStep.answer ?? 0, currentStep.tolerance ?? 0);
+  }
+
+  function lockPrediction(currentStep: LessonStep) {
+    const ok = gradeInteraction(currentStep);
+    if (ok === null) return;
     triesRef.current += 1;
-    const ok = isCorrect(value, currentStep.answer ?? 0, currentStep.tolerance ?? 0);
     lastCorrectRef.current = ok;
     setCorrect(ok);
     setInputError('');
+    // First wrong attempt: withhold the answer entirely — don't run the simulation
+    // (which would reveal it). Just prompt one more try. The sim runs and reveals
+    // only when the answer is correct or on the second attempt.
+    if (!ok && triesRef.current < 2) {
+      setResolved(false);
+      setPhase('feedback');
+      return;
+    }
     setPhase('running');
     setRunSignal((n) => n + 1);
   }
@@ -110,15 +176,10 @@ export default function LessonPlayer({ lesson }: Props) {
       celebrate(result.masteredNow);
       return;
     }
-    if (triesRef.current >= 2) {
-      const result = progress.recordResult(lesson, currentStep, 'red');
-      setResolved(true);
-      if (result.triggerReview) setShowReview(true);
-      setPhase('feedback');
-      return;
-    }
-    // First miss — let them read the simulation and try once more.
-    setResolved(false);
+    // Reached only on the second wrong attempt — the first never runs the sim.
+    const result = progress.recordResult(lesson, currentStep, 'red');
+    setResolved(true);
+    if (result.triggerReview) setShowReview(true);
     setPhase('feedback');
   }
 
@@ -138,6 +199,8 @@ export default function LessonPlayer({ lesson }: Props) {
   function tryAgain() {
     setGuess('');
     setInputError('');
+    // Pull a different problem from the pool for the second try.
+    setRetry((r) => r + 1);
     setPhase('predict');
   }
 
@@ -152,11 +215,24 @@ export default function LessonPlayer({ lesson }: Props) {
 
   function retryLesson() {
     progress.resetLessonResults(lesson);
+    setSeed(progress.get(lesson.id)?.seed ?? hashString(lesson.id));
+    setAttempt(progress.get(lesson.id)?.attempt ?? 0);
     const firstProblemIdx = lesson.steps.findIndex((s) => s.type === 'problem');
     const target = firstProblemIdx >= 0 ? firstProblemIdx : 0;
     setCompleted(false);
     setStepIndex(target);
     progress.setCurrentStep(lesson.id, lesson.steps[target].id);
+    resetStepUi();
+  }
+
+  // Re-roll a fresh set of questions from the pool (used from the concept step).
+  function newQuestions() {
+    progress.resetLessonResults(lesson);
+    setSeed(progress.get(lesson.id)?.seed ?? hashString(lesson.id));
+    setAttempt(progress.get(lesson.id)?.attempt ?? 0);
+    setCompleted(false);
+    setStepIndex(0);
+    progress.setCurrentStep(lesson.id, lesson.steps[0]?.id ?? '');
     resetStepUi();
   }
 
@@ -187,9 +263,23 @@ export default function LessonPlayer({ lesson }: Props) {
     lessonProgress?.completedProblemIds.includes(p.id),
   ).length;
   const isFinalMiss = step.type === 'problem' && phase === 'feedback' && !correct && resolved;
-  const isRetryMiss = step.type === 'problem' && phase === 'feedback' && !correct && !resolved;
 
   const stepLabel = step.type === 'concept' ? 'Concept' : 'Problem';
+  const interaction = step.interaction ?? 'numeric';
+  const showTruth = correct || isFinalMiss;
+  let truthLine: string | undefined;
+  if (showTruth) {
+    if (interaction === 'order') {
+      truthLine = `Most to least likely: ${(step.answerOrder ?? []).join(' › ')}.`;
+    } else if (interaction === 'draw') {
+      truthLine = 'The blue outline is the true distribution.';
+    } else {
+      truthLine =
+        step.unit === 'sum' || step.unit === 'count'
+          ? `The answer is ${step.answer}.`
+          : `The true value is ${(step.answer ?? 0).toFixed(3)}.`;
+    }
+  }
 
   return (
     <div className="player">
@@ -257,108 +347,164 @@ export default function LessonPlayer({ lesson }: Props) {
         </div>
       )}
 
-      <div className="player-stage">
-        <section className="player-sim">
-          {Sim && (
-            <Sim
-              key={step.id}
-              config={step.simConfig ?? {}}
-              mode={step.type === 'concept' ? 'explore' : 'verify'}
-              runSignal={step.type === 'problem' ? runSignal : 0}
-              onSettled={step.type === 'problem' ? () => onSettled(step) : undefined}
-            />
-          )}
-          {step.type === 'problem' && phase === 'running' && (
-            <p className="player-running">Running the simulation…</p>
-          )}
-        </section>
-
-        <aside className="player-panel">
-          {step.type === 'concept' && (
-            <div className="panel-block">
-              <p className="panel-hint">Explore freely, then continue when you&rsquo;re ready.</p>
-              <button type="button" className="btn btn-primary btn-block" onClick={advance}>
-                Continue
-              </button>
-            </div>
-          )}
-
-          {step.type === 'problem' && phase === 'predict' && (
-            <div className="predict panel-block">
-              <p className="panel-hint">
-                {triesRef.current === 0
-                  ? 'Commit a prediction, then run the simulation to check it. You get two tries.'
-                  : 'One try left — read the simulation result and enter your answer.'}
-              </p>
-              <input
-                type="number"
-                inputMode="decimal"
-                step="any"
-                className="predict-input"
-                placeholder="Your prediction"
-                value={guess}
-                onChange={(e) => setGuess(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && lockPrediction(step)}
+      {step.type === 'concept' ? (
+        <div className="player-stage player-stage--solo">
+          <p className="panel-hint explore-hint">
+            Explore freely, then continue when you&rsquo;re ready.
+          </p>
+          <section className="player-sim">
+            {Sim && (
+              <Sim
+                key={`${step.id}:${seed}:${attempt}`}
+                config={step.simConfig ?? {}}
+                mode="explore"
+                runSignal={0}
               />
-              {step.unit && <span className="predict-unit">Answer as a {step.unit}.</span>}
-              {inputError && <span className="predict-error">{inputError}</span>}
-              <button
-                type="button"
-                className="btn btn-primary btn-block"
-                onClick={() => lockPrediction(step)}
-              >
-                {triesRef.current === 0 ? 'Lock in & run' : 'Lock in second try'}
-              </button>
-            </div>
-          )}
-
-          {step.type === 'problem' && phase === 'running' && (
-            <div className="panel-block">
-              <p className="panel-hint">Watching the long run unfold…</p>
-            </div>
-          )}
-
-          {step.type === 'problem' && phase === 'feedback' && step.feedback && (
-            <div className="panel-block">
-              <FeedbackBanner
-                correct={correct}
-                message={correct ? step.feedback.correct : step.feedback.incorrect}
-                truth={
-                  correct || isFinalMiss
-                    ? step.unit === 'sum'
-                      ? `The answer is ${step.answer}.`
-                      : `The true value is ${(step.answer ?? 0).toFixed(3)}.`
-                    : undefined
-                }
+            )}
+            {Sim && <SpeedControl />}
+          </section>
+          <div className="explore-actions">
+            <button type="button" className="btn btn-primary explore-continue" onClick={advance}>
+              Continue
+            </button>
+            <button type="button" className="btn explore-shuffle" onClick={newQuestions}>
+              ↻ New questions
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="player-stage">
+          <section className="player-sim">
+            {Sim && (
+              <Sim
+                key={`${step.id}:${seed}:${attempt}:${retry}`}
+                config={step.simConfig ?? {}}
+                mode="verify"
+                runSignal={runSignal}
+                onSettled={() => onSettled(step)}
               />
-              {isRetryMiss && (
+            )}
+            {phase === 'running' && <p className="player-running">Running the simulation…</p>}
+            {Sim && <SpeedControl />}
+          </section>
+
+          <aside className="player-panel">
+            {phase === 'predict' && (
+              <div className="predict panel-block">
                 <p className="panel-hint">
-                  Not quite. The simulation above shows how it settles — enter your second answer.
+                  {triesRef.current === 0
+                    ? 'Commit a prediction, then run the simulation to check it. You get two tries.'
+                    : 'One try left — think it through and commit your answer; the simulation reveals the result this time.'}
                 </p>
-              )}
-              {showReview && conceptStep && (
-                <div className="review">
-                  <strong className="review-title">Quick review: {conceptStep.title}</strong>
-                  <p>{conceptStep.body}</p>
-                </div>
-              )}
-              {resolved ? (
+
+                {interaction === 'numeric' && (
+                  <>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      step="any"
+                      className="predict-input"
+                      placeholder="Your prediction"
+                      value={guess}
+                      onChange={(e) => setGuess(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && lockPrediction(step)}
+                    />
+                    {step.unit && <span className="predict-unit">Answer as a {step.unit}.</span>}
+                  </>
+                )}
+
+                {interaction === 'order' && (
+                  <>
+                    <span className="predict-unit">Put the most likely outcome at the top.</span>
+                    <OrderItems items={order} onChange={setOrder} labels={step.orderLabels} />
+                  </>
+                )}
+
+                {interaction === 'draw' && (
+                  <>
+                    <span className="predict-unit">Drag across the pad to sketch the shape you expect.</span>
+                    <DrawDistribution
+                      categories={step.drawCategories ?? []}
+                      value={drawn}
+                      onChange={setDrawn}
+                    />
+                  </>
+                )}
+
+                {inputError && <span className="predict-error">{inputError}</span>}
                 <button
                   type="button"
                   className="btn btn-primary btn-block"
-                  onClick={continueFromProblem}
+                  onClick={() => lockPrediction(step)}
                 >
-                  Continue
+                  {triesRef.current === 0 ? 'Lock in & run' : 'Lock in second try'}
                 </button>
-              ) : (
-                <button type="button" className="btn btn-primary btn-block" onClick={tryAgain}>
-                  Try again (last try)
-                </button>
-              )}
-            </div>
-          )}
-        </aside>
-      </div>
+              </div>
+            )}
+
+            {phase === 'running' && (
+              <div className="panel-block">
+                <p className="panel-hint">Watching the long run unfold…</p>
+              </div>
+            )}
+
+            {phase === 'feedback' && step.feedback && (
+              <div className="panel-block">
+                {correct || resolved ? (
+                  <FeedbackBanner
+                    correct={correct}
+                    message={correct ? step.feedback.correct : step.feedback.incorrect}
+                    truth={truthLine}
+                  />
+                ) : (
+                  <FeedbackBanner
+                    correct={false}
+                    message="Not quite — you have one more try. Take another look, then commit a new prediction."
+                  />
+                )}
+                {showTruth && interaction === 'order' && (
+                  <OrderItems
+                    items={order}
+                    answer={step.answerOrder}
+                    labels={step.orderLabels}
+                    disabled
+                    onChange={() => {}}
+                  />
+                )}
+                {showTruth && interaction === 'draw' && (
+                  <DrawDistribution
+                    categories={step.drawCategories ?? []}
+                    value={drawn}
+                    truth={step.answerShape}
+                    showTruth
+                    disabled
+                    onChange={() => {}}
+                  />
+                )}
+                {showReview && conceptStep && (
+                  <div className="review">
+                    <strong className="review-title">Quick review: {conceptStep.title}</strong>
+                    <p>{conceptStep.body}</p>
+                  </div>
+                )}
+                {resolved ? (
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-block"
+                    onClick={continueFromProblem}
+                  >
+                    Continue
+                  </button>
+                ) : (
+                  <button type="button" className="btn btn-primary btn-block" onClick={tryAgain}>
+                    Try again (last try)
+                  </button>
+                )}
+              </div>
+            )}
+          </aside>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { SimulationProps } from './types';
-import { cssVar, setupCanvas } from './canvasUtils';
+import { setupCanvas, simPalette } from './canvasUtils';
+import { scaledStep } from '../lib/simSpeed';
+import RangeField from '../components/RangeField';
 
 const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 const SUITS = ['\u2660', '\u2665', '\u2666', '\u2663'];
@@ -21,8 +23,17 @@ export default function ConditionalProbability({ config, mode, runSignal, onSett
   const scaleMax = config.scaleMax ?? 0.15;
   const [trials, setTrials] = useState(3000);
   const rafRef = useRef<number>(0);
+  const accRef = useRef(0);
   const lastRunRef = useRef(runSignal);
-  const stateRef = useRef({ num: 0, den: 0, processed: 0, total: 0, last: [-1, -1] as number[] });
+  const stateRef = useRef({
+    num: 0,
+    den: 0,
+    processed: 0,
+    total: 0,
+    last: [-1, -1] as number[],
+    // Running tally of every card dealt, bucketed by rank (index 0=A … 12=K).
+    rankCounts: new Array(13).fill(0) as number[],
+  });
 
   const isAce = (card: number) => card % 13 === 0;
   const isFace = (card: number) => card % 13 >= 10;
@@ -41,11 +52,9 @@ export default function ConditionalProbability({ config, mode, runSignal, onSett
       return { cards: [a, b], num: isAce(a) && isAce(b) ? 1 : 0, den: 1 };
     }
     if (metric === 4) {
-      // condition on the first card NOT being an ace
       if (isAce(a)) return { cards: [a, b], num: 0, den: 0 };
       return { cards: [a, b], num: isAce(b) ? 1 : 0, den: 1 };
     }
-    // metric 2: condition on first being an ace
     if (!isAce(a)) return { cards: [a, b], num: 0, den: 0 };
     return { cards: [a, b], num: isAce(b) ? 1 : 0, den: 1 };
   }
@@ -61,13 +70,9 @@ export default function ConditionalProbability({ config, mode, runSignal, onSett
     if (!canvas) return;
     const { ctx, width, height } = setupCanvas(canvas);
     const s = stateRef.current;
-    const cyan = cssVar('--cyan', '#36e2ff');
-    const text = cssVar('--text', '#b9b3cc');
-    const textH = cssVar('--text-h', '#ffffff');
-    const border = cssVar('--border', '#2c2542');
+    const c = simPalette();
     ctx.clearRect(0, 0, width, height);
 
-    // Cards
     const highlight = (card: number) => (metric === 3 ? isFace(card) : isAce(card));
     const show = metric === 0 || metric === 3 ? 1 : 2;
     const cw = 56;
@@ -79,27 +84,25 @@ export default function ConditionalProbability({ config, mode, runSignal, onSett
     for (let i = 0; i < show; i++) {
       const x = startX + i * (cw + gap);
       const card = s.last[i] ?? -1;
-      ctx.fillStyle = '#161226';
-      ctx.strokeStyle = card >= 0 && highlight(card) ? cyan : border;
-      ctx.lineWidth = card >= 0 && highlight(card) ? 2 : 1;
-      if (card >= 0 && highlight(card)) {
-        ctx.shadowColor = cyan;
-        ctx.shadowBlur = 14;
-      }
+      const hit = card >= 0 && highlight(card);
+
+      ctx.fillStyle = c.surface;
+      ctx.strokeStyle = hit ? c.accent : c.border;
+      ctx.lineWidth = hit ? 2 : 1;
       ctx.beginPath();
       ctx.roundRect(x, cardY, cw, ch, 8);
       ctx.fill();
       ctx.stroke();
-      ctx.shadowBlur = 0;
+
       if (card >= 0) {
         const { rank, suit, red } = cardLabel(card);
-        ctx.fillStyle = red ? '#ff6b9d' : textH;
+        ctx.fillStyle = red ? c.bad : c.textH;
         ctx.font = '700 20px system-ui, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(rank + suit, x + cw / 2, cardY + ch / 2);
       } else {
-        ctx.fillStyle = text;
+        ctx.fillStyle = c.muted;
         ctx.font = '24px system-ui, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -111,37 +114,78 @@ export default function ConditionalProbability({ config, mode, runSignal, onSett
     const frac = s.den > 0 ? s.num / s.den : 0;
     const barX = 24;
     const barW = width - 48;
-    const barY = 132;
-    const barH = 22;
-    ctx.fillStyle = border;
+    const barY = 102;
+    const barH = 20;
+    ctx.fillStyle = c.surface3;
     ctx.beginPath();
-    ctx.roundRect(barX, barY, barW, barH, 11);
+    ctx.roundRect(barX, barY, barW, barH, 10);
     ctx.fill();
     if (frac > 0) {
-      const grad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
-      grad.addColorStop(0, '#b14dff');
-      grad.addColorStop(1, '#ff4dd8');
-      ctx.save();
-      ctx.shadowColor = '#ff4dd8';
-      ctx.shadowBlur = 14;
-      ctx.fillStyle = grad;
+      ctx.fillStyle = c.accent;
       ctx.beginPath();
-      ctx.roundRect(barX, barY, Math.max(barH, (barW * Math.min(frac, scaleMax)) / scaleMax), barH, 11);
+      ctx.roundRect(barX, barY, Math.max(barH, (barW * Math.min(frac, scaleMax)) / scaleMax), barH, 10);
       ctx.fill();
-      ctx.restore();
     }
 
-    ctx.fillStyle = textH;
-    ctx.font = '700 26px system-ui, sans-serif';
+    ctx.fillStyle = c.textH;
+    ctx.font = '700 24px system-ui, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(frac.toFixed(4), width / 2, barY + barH + 30);
-    ctx.fillStyle = text;
+    ctx.fillText(frac.toFixed(4), width / 2, barY + barH + 24);
+    ctx.fillStyle = c.text;
     ctx.font = '12px system-ui, sans-serif';
     ctx.fillText(
       s.processed > 0 ? `${s.num} of ${s.den} qualifying draws` : 'press run to deal',
       width / 2,
-      barY + barH + 50,
+      barY + barH + 42,
     );
+
+    // Per-rank tally: one counter per rank A..K, incremented for every card dealt.
+    const histLeft = 22;
+    const histRight = width - 14;
+    const histBase = height - 32;
+    const histTop = 192;
+    const histH = histBase - histTop;
+    const n = 13;
+    const histGap = 4;
+    const plotW = histRight - histLeft;
+    const bw = (plotW - histGap * (n - 1)) / n;
+    const maxCount = Math.max(1, ...s.rankCounts);
+    const relevant = (rank: number) => (metric === 3 ? rank >= 10 : rank === 0);
+
+    for (let i = 0; i < n; i++) {
+      const x = histLeft + i * (bw + histGap);
+      const h = (s.rankCounts[i] / maxCount) * histH;
+      ctx.fillStyle = c.surface3;
+      ctx.beginPath();
+      ctx.roundRect(x, histTop, bw, histH, 3);
+      ctx.fill();
+      if (s.rankCounts[i] > 0) {
+        ctx.fillStyle = relevant(i) ? c.accent : c.borderStrong;
+        ctx.beginPath();
+        ctx.roundRect(x, histBase - h, bw, h, 3);
+        ctx.fill();
+      }
+      // Live counter value above each bar (only when bars are wide enough to read).
+      if (bw >= 24 && s.processed > 0) {
+        ctx.fillStyle = relevant(i) ? c.accentStrong : c.muted;
+        ctx.font = '9px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(String(s.rankCounts[i]), x + bw / 2, histBase - h - 2);
+      }
+      // Rank label
+      ctx.fillStyle = relevant(i) ? c.accentStrong : c.muted;
+      ctx.font = relevant(i) ? '700 11px system-ui, sans-serif' : '11px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(RANKS[i], x + bw / 2, histBase + 5);
+    }
+
+    ctx.fillStyle = c.muted;
+    ctx.font = '10px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('cards dealt, by rank', width / 2, histBase + 19);
   }
 
   function run(total: number) {
@@ -151,13 +195,17 @@ export default function ConditionalProbability({ config, mode, runSignal, onSett
     s.den = 0;
     s.processed = 0;
     s.total = total;
+    s.rankCounts = new Array(13).fill(0);
+    accRef.current = 0;
     const tick = () => {
       const chunk = Math.ceil(total / 70);
-      for (let i = 0; i < chunk && s.processed < total; i++) {
+      const todo = scaledStep(accRef, chunk);
+      for (let i = 0; i < todo && s.processed < total; i++) {
         const t = drawTrial();
         s.num += t.num;
         s.den += t.den;
         s.last = t.cards;
+        for (const card of t.cards) s.rankCounts[card % 13]++;
         s.processed++;
       }
       draw();
@@ -188,20 +236,10 @@ export default function ConditionalProbability({ config, mode, runSignal, onSett
 
   return (
     <div className="sim">
-      <canvas ref={canvasRef} data-height="216" className="sim-canvas" />
+      <canvas ref={canvasRef} data-height="336" className="sim-canvas" />
       {mode === 'explore' && (
         <div className="sim-controls">
-          <label className="sim-slider">
-            <span>Draws: {trials}</span>
-            <input
-              type="range"
-              min={100}
-              max={8000}
-              step={100}
-              value={trials}
-              onChange={(e) => setTrials(Number(e.target.value))}
-            />
-          </label>
+          <RangeField label="Draws" value={trials} min={1} max={8000} onChange={setTrials} />
           <button type="button" className="btn" onClick={() => run(trials)}>
             Deal {trials}×
           </button>

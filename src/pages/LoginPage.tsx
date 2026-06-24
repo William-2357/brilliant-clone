@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { navigate } from '../lib/router';
+import Logo from '../components/Logo';
 
 export default function LoginPage() {
   const { user, signIn, signUp, backendKind } = useAuth();
@@ -33,9 +34,7 @@ export default function LoginPage() {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <div className="auth-emblem" aria-hidden>
-          LR
-        </div>
+        <Logo size={56} className="auth-emblem" />
         <p className="brand">The Long Run</p>
         <h1 className="auth-title">Probability, by doing</h1>
         <p className="auth-sub">

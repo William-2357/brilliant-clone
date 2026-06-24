@@ -4,14 +4,19 @@ import {
   lessonProgressFraction,
   recommendNext,
   courseStats,
+  masteryCurve,
+  dayKey,
+  dayDiff,
 } from '../store/progress';
 import { useProgress } from '../hooks/useProgress';
 import { useUnlockAll } from '../hooks/useUnlockAll';
 import { navigate } from '../lib/router';
-import LessonIcon, { lessonIconColor } from '../components/LessonIcon';
+import LessonIcon, { LockIcon } from '../components/LessonIcon';
 import ProgressRing from '../components/ProgressRing';
+import MasteryCurve from '../components/MasteryCurve';
 import QuestionBar from '../components/QuestionBar';
 import type { LessonState } from '../types/lesson';
+import type { UserStats } from '../lib/storage';
 
 const STATE_LABEL: Record<LessonState, string> = {
   locked: 'Locked',
@@ -20,6 +25,36 @@ const STATE_LABEL: Record<LessonState, string> = {
   cleared: 'Cleared',
   mastered: 'Mastered',
 };
+
+const DAY_INITIAL = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+interface WeekCell {
+  label: string;
+  on: boolean;
+  today: boolean;
+}
+
+/**
+ * The last 7 calendar days (ending today). A day is "on" if it falls within the
+ * current streak window (the consecutive days ending on `lastActiveDay`). This
+ * only marks days we can actually back with stored data, never invented ones.
+ */
+function weekCells(stats: UserStats): WeekCell[] {
+  const cells: WeekCell[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - i);
+    const key = dayKey(d.getTime());
+    let on = false;
+    if (stats.lastActiveDay && stats.currentStreak > 0) {
+      const back = dayDiff(key, stats.lastActiveDay); // lastActiveDay - key
+      on = back >= 0 && back <= stats.currentStreak - 1;
+    }
+    cells.push({ label: DAY_INITIAL[d.getDay()], on, today: i === 0 });
+  }
+  return cells;
+}
 
 export default function CoursePage() {
   const progress = useProgress();
@@ -32,6 +67,13 @@ export default function CoursePage() {
   const next = recommendNext(lessons, progress.all);
   const stats = courseStats(lessons, progress.all);
   const { currentStreak, longestStreak } = progress.stats;
+  const curve = masteryCurve(lessons, progress.all);
+  const cells = weekCells(progress.stats);
+  const masteryPct = Math.round(stats.masteryFraction * 100);
+  const firstTry =
+    stats.problemsResolved > 0
+      ? Math.round((stats.problemsGreen / stats.problemsResolved) * 100)
+      : null;
 
   return (
     <div className="page course">
@@ -82,7 +124,7 @@ export default function CoursePage() {
                   ? 'var(--good)'
                   : state === 'cleared'
                     ? 'var(--accent-2)'
-                    : lessonIconColor(lesson.id);
+                    : 'var(--accent)';
               return (
                 <li key={lesson.id}>
                   <button
@@ -103,9 +145,7 @@ export default function CoursePage() {
                     {clickable ? (
                       <ProgressRing value={frac} size={34} stroke={3.5} color={ringColor} />
                     ) : (
-                      <span className="lcard-lock" aria-hidden>
-                        {'\u{1F512}'}
-                      </span>
+                      <LockIcon size={16} className="lcard-lock" />
                     )}
                     <span className={`status-pill pill-${state}`}>
                       {lesson.status === 'coming-soon' ? 'Coming soon' : STATE_LABEL[state]}
@@ -118,37 +158,58 @@ export default function CoursePage() {
         </div>
 
         <aside className="course-aside">
-          <div className="panel mastery-panel">
-            <p className="panel-title">Course mastery</p>
-            <div className="mastery-ring">
-              <ProgressRing value={stats.masteryFraction} size={132} stroke={11}>
-                <span className="mastery-pct">{Math.round(stats.masteryFraction * 100)}%</span>
-                <span className="mastery-cap">complete</span>
-              </ProgressRing>
+          <div className="panel prog-panel">
+            <p className="prog-eyebrow">Your progress</p>
+            <div className="prog-top">
+              <span className="prog-pct">
+                {masteryPct}
+                <small>% complete</small>
+              </span>
+              <span className="prog-meta">
+                {stats.lessonsMastered}/{stats.lessonsBuilt} mastered
+              </span>
             </div>
-            <div className="panel-stats">
-              <div className="pstat">
-                <span className="pstat-value">
-                  {stats.lessonsMastered}/{stats.lessonsBuilt}
-                </span>
-                <span className="pstat-label">Lessons mastered</span>
+            <MasteryCurve points={curve} />
+            <div className="prog-lines">
+              <div className="sl">
+                <span>Problems solved</span>
+                <b>
+                  {stats.problemsSolved}/{stats.totalProblems}
+                </b>
               </div>
-              <div className="pstat">
-                <span className="pstat-value">{stats.problemsSolved}</span>
-                <span className="pstat-label">Problems solved</span>
+              <div className="sl">
+                <span>First-try rate</span>
+                <b>{firstTry === null ? '—' : `${firstTry}%`}</b>
+              </div>
+              <div className="sl">
+                <span>Questions answered</span>
+                <b>{stats.questionsAnswered}</b>
               </div>
             </div>
           </div>
 
           <div className="panel streak-panel">
-            <div className={`streak-hero ${currentStreak > 0 ? 'hot' : ''}`}>
-              <span className="streak-flame" aria-hidden>
-                {'\u{1F525}'}
+            <div className="streak-head">
+              <p className="streak-lab">This week</p>
+              <span className="streak-meta">
+                {currentStreak > 0 ? (
+                  <>
+                    <b>{currentStreak}-day</b> streak
+                  </>
+                ) : (
+                  'No streak yet'
+                )}{' '}
+                · best {longestStreak}
               </span>
-              <span className="streak-num">{currentStreak}</span>
-              <span className="streak-cap">day streak</span>
             </div>
-            <p className="streak-note">Best streak: {longestStreak} days</p>
+            <div className="weekstrip" role="img" aria-label={`${currentStreak} day streak this week`}>
+              {cells.map((c, i) => (
+                <div key={i} className={`day ${c.on ? 'on' : ''} ${c.today ? 'today' : ''}`}>
+                  <i />
+                  <span>{c.label}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </aside>
       </div>

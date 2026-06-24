@@ -12,7 +12,7 @@ rather than decoration.
 
 - **Persona:** "The Curious Adult Learner" — short (3–5 min) sessions, feedback
   that explains rather than grades, a clear sense of mastery and what's next.
-- **Status:** Phase 1 (MVP) complete; all 7 lessons built. A **Khan Academy–style
+- **Status:** Phase 1 (MVP) complete; all 9 lessons built. A **Khan Academy–style
   UI redesign** has since landed on top (full-page layout with a sticky topbar +
   responsive sidebar, light/dark theme, per-lesson icons, segmented grading, KaTeX
   lectures, confetti). Phases 2 (AI) and 3 (learning science) are specced in

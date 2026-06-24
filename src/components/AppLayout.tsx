@@ -4,8 +4,9 @@ import { lessons } from '../content/lessons';
 import { lessonState, lessonProgressFraction } from '../store/progress';
 import { useProgress } from '../hooks/useProgress';
 import { useUnlockAll } from '../hooks/useUnlockAll';
-import { navigate } from '../lib/router';
-import LessonIcon, { lessonIconColor } from './LessonIcon';
+import { navigate, currentPath } from '../lib/router';
+import LessonIcon, { LockIcon } from './LessonIcon';
+import Logo from './Logo';
 import ProgressRing from './ProgressRing';
 import ProfileMenu from './ProfileMenu';
 
@@ -18,6 +19,7 @@ export default function AppLayout({ activeLessonId, children }: Props) {
   const progress = useProgress();
   const [unlockAll] = useUnlockAll();
   const [navOpen, setNavOpen] = useState(false);
+  const path = currentPath();
 
   function go(path: string) {
     setNavOpen(false);
@@ -38,12 +40,12 @@ export default function AppLayout({ activeLessonId, children }: Props) {
           <span />
         </button>
         <button type="button" className="brand-link" onClick={() => go('/learn')}>
-          <span className="brand-mark" aria-hidden>
-            LR
-          </span>
+          <Logo size={32} className="brand-mark" />
           <span className="brand-text">The Long Run</span>
         </button>
-        <ProfileMenu />
+        <div className="topbar-actions">
+          <ProfileMenu />
+        </div>
       </header>
 
       {navOpen && <div className="nav-backdrop" onClick={() => setNavOpen(false)} />}
@@ -52,10 +54,17 @@ export default function AppLayout({ activeLessonId, children }: Props) {
         <p className="sidebar-label">Course</p>
         <button
           type="button"
-          className={`nav-home ${activeLessonId === null ? 'active' : ''}`}
+          className={`nav-home ${path === '/learn' ? 'active' : ''}`}
           onClick={() => go('/learn')}
         >
           Overview
+        </button>
+        <button
+          type="button"
+          className={`nav-home ${path === '/sandbox' ? 'active' : ''}`}
+          onClick={() => go('/sandbox')}
+        >
+          Sandbox
         </button>
         <p className="sidebar-label">Lessons</p>
         <nav className="nav-list">
@@ -69,7 +78,7 @@ export default function AppLayout({ activeLessonId, children }: Props) {
                 ? 'var(--good)'
                 : state === 'cleared'
                   ? 'var(--accent-2)'
-                  : lessonIconColor(lesson.id);
+                  : 'var(--accent)';
             return (
               <button
                 key={lesson.id}
@@ -84,9 +93,7 @@ export default function AppLayout({ activeLessonId, children }: Props) {
                   <span className="nav-sub">{lesson.concept}</span>
                 </span>
                 {locked ? (
-                  <span className="nav-lock" aria-hidden>
-                    {'\u{1F512}'}
-                  </span>
+                  <LockIcon size={15} className="nav-lock" />
                 ) : (
                   <ProgressRing
                     value={state === 'mastered' ? 1 : frac}
