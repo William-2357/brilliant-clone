@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { lessons } from '../content/lessons';
-import { lessonState, lessonProgressFraction } from '../store/progress';
+import { lessons, finalTest } from '../content/lessons';
+import { lessonState, allLessonsCleared } from '../store/progress';
 import { useProgress } from '../hooks/useProgress';
 import { useUnlockAll } from '../hooks/useUnlockAll';
 import { navigate, currentPath } from '../lib/router';
 import LessonIcon, { LockIcon } from './LessonIcon';
 import Logo from './Logo';
-import ProgressRing from './ProgressRing';
 import ProfileMenu from './ProfileMenu';
+import ThemeToggle from './ThemeToggle';
 
 interface Props {
   activeLessonId: string | null;
@@ -39,11 +39,12 @@ export default function AppLayout({ activeLessonId, children }: Props) {
           <span />
           <span />
         </button>
-        <button type="button" className="brand-link" onClick={() => go('/learn')}>
+        <button type="button" className="brand-link" onClick={() => go('/')}>
           <Logo size={32} className="brand-mark" />
           <span className="brand-text">The Long Run</span>
         </button>
         <div className="topbar-actions">
+          <ThemeToggle />
           <ProfileMenu />
         </div>
       </header>
@@ -52,6 +53,13 @@ export default function AppLayout({ activeLessonId, children }: Props) {
 
       <aside className="sidebar">
         <p className="sidebar-label">Course</p>
+        <button
+          type="button"
+          className={`nav-home ${path === '/' ? 'active' : ''}`}
+          onClick={() => go('/')}
+        >
+          Home
+        </button>
         <button
           type="button"
           className={`nav-home ${path === '/learn' ? 'active' : ''}`}
@@ -71,14 +79,9 @@ export default function AppLayout({ activeLessonId, children }: Props) {
           {lessons.map((lesson) => {
             const state = lessonState(lesson, progress.all, unlockAll);
             const locked = state === 'locked';
-            const frac = lessonProgressFraction(lesson, progress.all);
             const active = lesson.id === activeLessonId;
-            const ringColor =
-              state === 'mastered'
-                ? 'var(--good)'
-                : state === 'cleared'
-                  ? 'var(--accent-2)'
-                  : 'var(--accent)';
+            const started =
+              active || state === 'mastered' || state === 'cleared' || state === 'in-progress';
             return (
               <button
                 key={lesson.id}
@@ -87,25 +90,36 @@ export default function AppLayout({ activeLessonId, children }: Props) {
                 disabled={locked}
                 onClick={() => !locked && go(`/learn/${lesson.id}`)}
               >
-                <LessonIcon lessonId={lesson.id} size={20} tile />
+                <LessonIcon lessonId={lesson.id} size={20} colored={!active} tile />
                 <span className="nav-text">
                   <span className="nav-title">{lesson.title}</span>
                   <span className="nav-sub">{lesson.concept}</span>
                 </span>
-                {locked ? (
-                  <LockIcon size={15} className="nav-lock" />
-                ) : (
-                  <ProgressRing
-                    value={state === 'mastered' ? 1 : frac}
-                    size={24}
-                    stroke={3}
-                    color={ringColor}
-                  />
-                )}
+                <span className={`nav-dot ${started ? 'on' : ''}`} aria-hidden />
               </button>
             );
           })}
         </nav>
+
+        <p className="sidebar-label">Exam</p>
+        {(() => {
+          const testUnlocked = unlockAll || allLessonsCleared(lessons, progress.all);
+          return (
+            <button
+              type="button"
+              className={`nav-item ${path === '/test' ? 'active' : ''} ${testUnlocked ? '' : 'locked'}`}
+              disabled={!testUnlocked}
+              onClick={() => testUnlocked && go('/test')}
+            >
+              <LessonIcon lessonId={finalTest.id} size={20} tile />
+              <span className="nav-text">
+                <span className="nav-title">{finalTest.title}</span>
+                <span className="nav-sub">{finalTest.concept}</span>
+              </span>
+              {!testUnlocked && <LockIcon size={15} className="nav-lock" />}
+            </button>
+          );
+        })()}
       </aside>
 
       <main className="content">{children}</main>

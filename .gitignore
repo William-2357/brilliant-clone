@@ -11,6 +11,12 @@ node_modules
 dist
 dist-ssr
 *.local
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
 .agents/skills/*
 CLAUDE.md
 
@@ -18,6 +24,8 @@ CLAUDE.md
 .env
 .env.*
 !.env.example
+# Committed: contains no secrets, only blank Firebase vars to force local mode in e2e.
+!.env.test
 
 # Firebase
 .firebase/

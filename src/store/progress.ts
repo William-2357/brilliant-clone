@@ -34,11 +34,24 @@ export function recordActiveDay(stats: UserStats, now: number): UserStats {
     currentStreak = gap === 1 ? stats.currentStreak + 1 : 1;
   }
   return {
+    ...stats,
     currentStreak,
     longestStreak: Math.max(stats.longestStreak, currentStreak),
     lastActiveDay: today,
     totalDaysActive: stats.totalDaysActive + 1,
   };
+}
+
+/**
+ * Add `delta` to the count of problems resolved on the local day containing
+ * `now`. Always returns a new object (the per-day tally changes even when the
+ * streak doesn't), keyed by the same YYYY-MM-DD `dayKey` the heatmap reads.
+ */
+export function bumpDailyActivity(stats: UserStats, now: number, delta = 1): UserStats {
+  const key = dayKey(now);
+  const dailyActivity = { ...(stats.dailyActivity ?? {}) };
+  dailyActivity[key] = (dailyActivity[key] ?? 0) + delta;
+  return { ...stats, dailyActivity };
 }
 
 export function initialProgress(firstStepId: string): LessonProgress {
@@ -208,6 +221,12 @@ export function lessonProgressFraction(lesson: Lesson, all: ProgressMap): number
     return r === 'green' || r === 'yellow';
   }).length;
   return solved / problems.length;
+}
+
+/** True once every built lesson is cleared — the gate for unlocking the Final Test. */
+export function allLessonsCleared(lessons: Lesson[], all: ProgressMap): boolean {
+  const built = lessons.filter((l) => l.status === 'built');
+  return built.length > 0 && built.every((l) => isCleared(all[l.id]));
 }
 
 /** First un-cleared, unlocked, built lesson — the sensible "next" recommendation. */

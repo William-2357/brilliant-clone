@@ -5,7 +5,13 @@ import type { ProgressMap, UserStats } from '../lib/storage';
 import { emptyStats } from '../lib/storage';
 import type { Lesson, LessonProgress, LessonStep, ProblemResult } from '../types/lesson';
 import { useAuth } from './useAuth';
-import { computeCleared, computeMastered, initialProgress, recordActiveDay } from '../store/progress';
+import {
+  computeCleared,
+  computeMastered,
+  initialProgress,
+  recordActiveDay,
+  bumpDailyActivity,
+} from '../store/progress';
 
 interface RecordResult {
   progress: LessonProgress;
@@ -25,6 +31,8 @@ interface ProgressContextValue {
   recordResult(lesson: Lesson, step: LessonStep, result: ProblemResult): RecordResult;
   /** Wipe a lesson's question results so it can be replayed from scratch. */
   resetLessonResults(lesson: Lesson): void;
+  /** Mark today's Problem of the Day as solved — advances the daily streak. */
+  recordPotdSolved(): void;
 }
 
 const ProgressContext = createContext<ProgressContextValue | null>(null);
@@ -79,13 +87,22 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
     if (user) void backend.progress.saveLesson(user.uid, lessonId, next);
   }
 
-  /** Mark today active and advance the streak (no-op if already counted today). */
-  function recordActivity() {
-    const next = recordActiveDay(statsRef.current, Date.now());
+  /** Persist a new stats object (no-op when nothing changed). */
+  function commitStats(next: UserStats) {
     if (next === statsRef.current) return;
     statsRef.current = next;
     setStats(next);
     if (user) void backend.progress.saveStats(user.uid, next);
+  }
+
+  /**
+   * Count `problemDelta` resolved problems toward today's activity-heatmap tally.
+   * This no longer touches the day streak — the streak is driven solely by the
+   * Problem of the Day (see `recordPotdSolved`).
+   */
+  function recordActivity(problemDelta = 0) {
+    if (problemDelta <= 0) return;
+    commitStats(bumpDailyActivity(statsRef.current, Date.now(), problemDelta));
   }
 
   const value = useMemo<ProgressContextValue>(() => {
@@ -95,7 +112,6 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
       stats,
       get: (lessonId) => allRef.current[lessonId],
       ensureStarted: (lesson) => {
-        recordActivity();
         const existing = allRef.current[lesson.id];
         if (existing) return existing;
         const fresh = initialProgress(lesson.steps[0]?.id ?? '');
@@ -110,7 +126,8 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
         persist(lessonId, { ...existing, currentStepId: stepId, lastVisited: Date.now() });
       },
       recordResult: (lesson, step, result) => {
-        recordActivity();
+        // Count this resolved problem toward today's activity heatmap total.
+        recordActivity(1);
         const prev = allRef.current[lesson.id] ?? initialProgress(lesson.steps[0]?.id ?? '');
         const cleared = result === 'green' || result === 'yellow';
         const results = { ...(prev.results ?? {}), [step.id]: result };
@@ -139,6 +156,13 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
           clearedNow: clearedNow && !wasCleared,
           triggerReview: result === 'red',
         };
+      },
+      recordPotdSolved: () => {
+        // Solving the daily problem is what advances the streak; it also counts
+        // as a resolved problem for the heatmap. recordActiveDay no-ops the streak
+        // if today is already counted, so a same-day re-solve won't double-advance.
+        const now = Date.now();
+        commitStats(bumpDailyActivity(recordActiveDay(statsRef.current, now), now, 1));
       },
       resetLessonResults: (lesson) => {
         const firstStepId = lesson.steps[0]?.id ?? '';

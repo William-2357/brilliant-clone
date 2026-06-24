@@ -88,6 +88,28 @@ export function montyHallSwitchWin(doors = 3): number {
 }
 
 /**
+ * Probability that a single draw from a `deckSize`-card deck is one of the
+ * `matches` qualifying cards (e.g. 4 aces in 52, or 3 aces in a 51-card deck after
+ * one was removed). The atomic card probability the conditional lesson and final
+ * test build on, so no card answer is ever hand-typed.
+ */
+export function drawProbability(matches: number, deckSize = 52): number {
+  return matches / deckSize;
+}
+
+/**
+ * Probability of drawing a qualifying card `draws` times in a row WITHOUT
+ * replacement, starting from `matches` qualifiers in a `deckSize` deck. Each draw
+ * removes one qualifier and one card, so the chance chains:
+ * (matches/deckSize)·((matches−1)/(deckSize−1))·…  e.g. two aces = (4/52)(3/51).
+ */
+export function drawMatchesNoReplacement(matches: number, deckSize = 52, draws = 2): number {
+  let p = 1;
+  for (let i = 0; i < draws; i++) p *= (matches - i) / (deckSize - i);
+  return p;
+}
+
+/**
  * Order a set of two-dice sums from most to least likely (ties broken by the
  * smaller sum). Powers the drag-to-rank dice problem; the correct ranking is
  * computed, never hand-typed.

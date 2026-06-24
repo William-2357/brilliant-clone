@@ -13,7 +13,7 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (user) navigate('/learn');
+    if (user) navigate('/');
   }, [user]);
 
   async function submit(e: React.FormEvent) {
@@ -23,7 +23,7 @@ export default function LoginPage() {
     try {
       if (mode === 'signup') await signUp(name, email, password);
       else await signIn(email, password);
-      navigate('/learn');
+      navigate('/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.');
     } finally {

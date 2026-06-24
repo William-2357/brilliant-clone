@@ -15,6 +15,8 @@ import {
   dieSD,
   standardError,
   diceSampleMeanDistribution,
+  drawProbability,
+  drawMatchesNoReplacement,
 } from '../lib/probability';
 import { wheelConfig, wheelEV } from './simData';
 
@@ -595,7 +597,7 @@ export const lessons: Lesson[] = [
         simulation: 'conditional',
         simConfig: { metric: 0, scaleMax: 0.15, trials: 6000 },
         question: 'What is the probability it is an ace? (decimal)',
-        answer: 4 / 52,
+        answer: drawProbability(4, 52),
         tolerance: 0.02,
         unit: 'probability',
         feedback: {
@@ -611,7 +613,7 @@ export const lessons: Lesson[] = [
         simulation: 'conditional',
         simConfig: { metric: 2, scaleMax: 0.15, trials: 8000 },
         question: 'What is the probability the next card is also an ace? (decimal)',
-        answer: 3 / 51,
+        answer: drawProbability(3, 51),
         tolerance: 0.02,
         unit: 'probability',
         feedback: {
@@ -627,7 +629,7 @@ export const lessons: Lesson[] = [
         simulation: 'conditional',
         simConfig: { metric: 1, scaleMax: 0.02, trials: 8000 },
         question: 'What is the probability both cards are aces? (decimal)',
-        answer: (4 / 52) * (3 / 51),
+        answer: drawMatchesNoReplacement(4, 52, 2),
         tolerance: 0.004,
         unit: 'probability',
         feedback: {
@@ -643,7 +645,7 @@ export const lessons: Lesson[] = [
         simulation: 'conditional',
         simConfig: { metric: 3, scaleMax: 0.4, trials: 6000 },
         question: 'What is the probability the first card drawn is a face card? (decimal)',
-        answer: 12 / 52,
+        answer: drawProbability(12, 52),
         tolerance: 0.03,
         unit: 'probability',
         feedback: {
@@ -667,7 +669,10 @@ export const lessons: Lesson[] = [
           2: 'An ace next, given the first card was not an ace',
           3: 'A face card on the first draw',
         },
-        answerOrder: rankBy([0, 1, 2, 3], (i) => [4 / 52, 3 / 51, 4 / 51, 12 / 52][i]),
+        answerOrder: rankBy(
+          [0, 1, 2, 3],
+          (i) => [drawProbability(4, 52), drawProbability(3, 51), drawProbability(4, 51), drawProbability(12, 52)][i],
+        ),
         unit: 'order',
         feedback: {
           correct: 'Right — face card .231 > ace-given-non-ace .078 > ace .077 > ace-given-ace .059. Removing a non-ace lifts the ace odds; removing an ace lowers them.',
@@ -1049,6 +1054,190 @@ export const lessons: Lesson[] = [
     ],
   },
 ];
+
+export const FINAL_TEST_ID = 'lf-final-test';
+
+/**
+ * The Final Test — a 10-question capstone exam spanning all eight lessons.
+ * Unlike a lesson it withholds every result until all ten questions are answered
+ * (the deferred-feedback flow lives in `components/TestPlayer.tsx`). The concrete
+ * questions are generated from the same parameterized templates as the lessons
+ * (registered under `FINAL_TEST_ID` in `problemTemplates.ts`); the static steps
+ * below are the fallback content and the source of the gradable slot ids. Kept
+ * deliberately out of the `lessons` array so it never distorts course stats —
+ * UI surfaces reference `finalTest` directly. Every answer is computed from
+ * `probability.ts`.
+ */
+export const finalTest: Lesson = {
+  id: FINAL_TEST_ID,
+  index: 9,
+  title: 'Final Test',
+  concept: 'A 10-question capstone',
+  status: 'built',
+  prerequisiteId: 'l8-random-walk',
+  steps: [
+    {
+      id: 'lf-s1',
+      type: 'problem',
+      title: 'Long-run frequency',
+      body: 'A fair coin is flipped 1000 times.',
+      simulation: 'coinFlip',
+      simConfig: { flips: 1000, p: 0.5 },
+      question: 'What fraction of the flips come up heads? (decimal)',
+      answer: longRunFrequency(0.5),
+      tolerance: 0.05,
+      unit: 'fraction',
+      feedback: {
+        correct: 'A fair coin settles on 0.5 over the long run.',
+        incorrect: 'Each flip is 50/50, so the long-run fraction is 0.5.',
+      },
+    },
+    {
+      id: 'lf-s2',
+      type: 'problem',
+      title: 'A sum of seven',
+      body: 'You roll two fair six-sided dice and add the faces.',
+      simulation: 'diceRoll',
+      simConfig: { rolls: 2000 },
+      question: 'What is the probability the two dice sum to 7? (decimal)',
+      answer: dice[7],
+      tolerance: 0.02,
+      unit: 'probability',
+      feedback: {
+        correct: 'Six of the 36 outcomes make 7, so 1/6 ≈ 0.167.',
+        incorrect: 'There are 6 ways to roll a 7 out of 36 outcomes: 1/6 ≈ 0.167.',
+      },
+    },
+    {
+      id: 'lf-s3',
+      type: 'problem',
+      title: 'The crowded middle',
+      body: 'A 12-row Galton board drops balls into 13 bins.',
+      simulation: 'galtonBoard',
+      simConfig: { rows: 12, balls: 1000 },
+      question: 'What fraction of balls land in the three central bins? (decimal)',
+      answer: galtonCenterFraction(12, 3),
+      tolerance: 0.06,
+      unit: 'fraction',
+      feedback: {
+        correct: 'About 0.61 — the center dominates.',
+        incorrect: 'Add the three central binomial probabilities: about 0.61.',
+      },
+    },
+    {
+      id: 'lf-s4',
+      type: 'problem',
+      title: 'A long-shot lottery',
+      body: 'A ticket pays $100 with probability 0.1, and nothing otherwise.',
+      simulation: 'expectedValue',
+      simConfig: wheelConfig(lotteryWheel),
+      question: 'What is the expected value of one ticket? (dollars)',
+      answer: wheelEV(lotteryWheel),
+      tolerance: 1,
+      unit: 'dollars',
+      feedback: {
+        correct: '100 × 0.1 = $10 on average.',
+        incorrect: 'Weight the payout by its chance: 100 × 0.1 = $10.',
+      },
+    },
+    {
+      id: 'lf-s5',
+      type: 'problem',
+      title: 'The first card',
+      body: 'You draw one card from a freshly shuffled 52-card deck.',
+      simulation: 'conditional',
+      simConfig: { metric: 0, scaleMax: 0.15, trials: 6000 },
+      question: 'What is the probability it is an ace? (decimal)',
+      answer: drawProbability(4, 52),
+      tolerance: 0.02,
+      unit: 'probability',
+      feedback: {
+        correct: '4 aces in 52 cards is 1/13 ≈ 0.077.',
+        incorrect: 'There are 4 aces in 52 cards: 4/52 ≈ 0.077.',
+      },
+    },
+    {
+      id: 'lf-s6',
+      type: 'problem',
+      title: 'Always switching',
+      body: 'Three doors, one car. You pick one, the host opens a goat, and you switch.',
+      simulation: 'montyHall',
+      simConfig: { doors: 3, strategy: 1, trials: 1500 },
+      question: 'What fraction of games do you win by switching? (decimal)',
+      answer: montyHallSwitchWin(3),
+      tolerance: 0.05,
+      unit: 'fraction',
+      feedback: {
+        correct: 'Switching wins whenever your first pick was wrong: 2/3.',
+        incorrect: 'Your first pick is wrong 2/3 of the time, so switching wins 2/3.',
+      },
+    },
+    {
+      id: 'lf-s7',
+      type: 'problem',
+      title: 'Standard error',
+      body: 'A fair die has standard deviation about 1.71. You average 16 rolls at a time.',
+      simulation: 'clt',
+      simConfig: { parent: 0, m: 16, samples: 600 },
+      question: 'What is the standard error (the SD of the sample mean) for samples of 16? (decimal)',
+      answer: standardError(dieSD(), 16),
+      tolerance: 0.06,
+      unit: 'standard error',
+      feedback: {
+        correct: '1.71 / √16 ≈ 0.43.',
+        incorrect: 'Standard error = σ/√m = 1.71/√16 ≈ 0.43.',
+      },
+    },
+    {
+      id: 'lf-s8',
+      type: 'problem',
+      title: 'How far from home?',
+      body: 'A fair walk takes 100 steps of +1 or −1, each equally likely.',
+      simulation: 'randomWalk',
+      simConfig: { steps: 100, p: 0.5 },
+      question: 'About how far from the start is a typical walk after 100 steps? (number of steps)',
+      answer: randomWalkRMS(100, 0.5),
+      tolerance: 1.5,
+      unit: 'distance',
+      feedback: {
+        correct: 'Typical distance is √100 = 10 steps.',
+        incorrect: 'Typical distance is the standard deviation √n = √100 = 10.',
+      },
+    },
+    {
+      id: 'lf-s9',
+      type: 'problem',
+      title: 'Both aces',
+      body: 'You draw two cards from a full deck: an ace first, then an ace again.',
+      simulation: 'conditional',
+      simConfig: { metric: 1, scaleMax: 0.02, trials: 8000 },
+      question: 'What is the probability both cards are aces? (decimal)',
+      answer: drawMatchesNoReplacement(4, 52, 2),
+      tolerance: 0.004,
+      unit: 'probability',
+      feedback: {
+        correct: '(4/52)(3/51) ≈ 0.0045.',
+        incorrect: 'Chain the draws: (4/52)(3/51) ≈ 0.0045.',
+      },
+    },
+    {
+      id: 'lf-s10',
+      type: 'problem',
+      title: 'The gambler’s trap',
+      body: 'You flip a fair coin and happen to get 6 heads in a row.',
+      simulation: 'coinFlip',
+      simConfig: { flips: 1000, p: 0.5 },
+      question: 'What is the probability the very next flip is heads? (decimal)',
+      answer: longRunFrequency(0.5),
+      tolerance: 0.05,
+      unit: 'probability',
+      feedback: {
+        correct: 'Independence means past streaks don’t matter — still 0.5.',
+        incorrect: 'A fair coin has no memory; the next flip is still 0.5.',
+      },
+    },
+  ],
+};
 
 export function getLesson(id: string): Lesson | undefined {
   return lessons.find((l) => l.id === id);

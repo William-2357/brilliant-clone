@@ -14,10 +14,12 @@ export type StepType = 'concept' | 'problem';
 /**
  * How the learner commits a prediction on a problem step:
  *   numeric — type a single number (the default, used by every original lesson)
+ *   slider  — drag a marker along a labeled scale to commit a numeric value
  *   order   — drag a set of outcomes into a most→least-likely ranking
  *   draw    — sketch a distribution's bar heights before the truth is revealed
+ *   wheel   — drag prize-wheel segment probabilities to hit a target expected value
  */
-export type InteractionType = 'numeric' | 'order' | 'draw';
+export type InteractionType = 'numeric' | 'slider' | 'order' | 'draw' | 'wheel';
 
 export interface StepFeedback {
   correct: string;
@@ -70,6 +72,13 @@ export interface LessonStep {
   drawCategories?: (number | string)[];
   /** draw: the true normalized distribution over those categories (sums to 1). */
   answerShape?: number[];
+
+  /** slider: the scale the learner drags over (graded like numeric via `answer`/`tolerance`). */
+  sliderMin?: number;
+  sliderMax?: number;
+  sliderStep?: number;
+  /** wheel: fixed payouts; the learner sets each segment's probability to hit `answer` (target EV). */
+  wheelPayouts?: number[];
 }
 
 export type LessonStatus = 'built' | 'coming-soon';

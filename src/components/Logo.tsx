@@ -19,7 +19,7 @@ export default function Logo({ size = 32, className }: Props) {
       role="img"
       aria-label="The Long Run"
     >
-      <rect x="1" y="1" width="22" height="22" rx="6" fill="var(--accent)" />
+      <rect x="1" y="1" width="22" height="22" rx="6" fill="var(--hero-bg)" />
       <g fill="none" stroke="#fff" strokeLinecap="round" strokeLinejoin="round">
         <path d="M5 4.5V19H20" strokeWidth="1.4" opacity="0.5" />
         <path d="M5 17.8C7 10 12 8 20 7.6" strokeWidth="2.1" />

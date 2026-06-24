@@ -10,6 +10,7 @@ interface Props {
   mastered: boolean;
   nextLesson: Lesson | null;
   onNext: () => void;
+  onReview: () => void;
   onRetry: () => void;
   onBackToCourse: () => void;
 }
@@ -21,6 +22,7 @@ export default function CompletionScreen({
   mastered,
   nextLesson,
   onNext,
+  onReview,
   onRetry,
   onBackToCourse,
 }: Props) {
@@ -69,7 +71,7 @@ export default function CompletionScreen({
 
       <p className="completion-summary">{summary}</p>
 
-      {cleared && nextLesson ? (
+      {cleared && nextLesson && (
         <>
           <div className="completion-next">
             <span className="completion-next-label">Up next</span>
@@ -80,21 +82,24 @@ export default function CompletionScreen({
             Start {nextLesson.title}
           </button>
         </>
-      ) : cleared ? (
+      )}
+      {cleared && !nextLesson && (
         <p className="completion-summary">
           You&rsquo;ve cleared every available lesson. More are coming soon.
         </p>
-      ) : (
-        <button type="button" className="btn btn-primary btn-block" onClick={onRetry}>
-          Retry lesson
-        </button>
       )}
 
-      {!mastered && cleared && (
-        <button type="button" className="btn btn-block" onClick={onRetry}>
-          Retry for mastery
-        </button>
-      )}
+      {/* A completed lesson can always be revisited (read-only) or retaken fresh. */}
+      <button type="button" className="btn btn-block" onClick={onReview}>
+        Review lesson
+      </button>
+      <button
+        type="button"
+        className={`btn btn-block ${cleared && nextLesson ? '' : 'btn-primary'}`}
+        onClick={onRetry}
+      >
+        {mastered ? 'Retake lesson' : cleared ? 'Retry for mastery' : 'Retry lesson'}
+      </button>
 
       <button type="button" className="btn btn-ghost" onClick={onBackToCourse}>
         Back to course

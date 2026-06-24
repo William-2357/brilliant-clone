@@ -101,10 +101,14 @@ export default function DiceRoll({ config, mode, runSignal, onSettled }: Simulat
     ctx.font = '600 13px system-ui, sans-serif';
     ctx.textAlign = 'left';
     ctx.fillText(`Rolls: ${s.processed}`, left, 14);
-    ctx.textAlign = 'right';
-    ctx.fillStyle = c.text;
-    ctx.font = '12px system-ui, sans-serif';
-    ctx.fillText(`Last: ${s.last[0]} + ${s.last[1]} = ${s.last[0] + s.last[1]}`, width - right, 14);
+    // Only show the most recent roll once at least one has actually happened —
+    // otherwise the seed value [1, 1] reads as a misleading "Last: 1 + 1 = 2".
+    if (s.processed > 0) {
+      ctx.textAlign = 'right';
+      ctx.fillStyle = c.text;
+      ctx.font = '12px system-ui, sans-serif';
+      ctx.fillText(`Last: ${s.last[0]} + ${s.last[1]} = ${s.last[0] + s.last[1]}`, width - right, 14);
+    }
 
     ctx.fillStyle = c.muted;
     ctx.font = '10px system-ui, sans-serif';

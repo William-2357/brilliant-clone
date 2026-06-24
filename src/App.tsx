@@ -5,10 +5,14 @@ import { useRoute, matchRoute, navigate } from './lib/router';
 import AuthGuard from './components/AuthGuard';
 import AppLayout from './components/AppLayout';
 import LoginPage from './pages/LoginPage';
+import HomePage from './pages/HomePage';
 import CoursePage from './pages/CoursePage';
 import LessonPage from './pages/LessonPage';
 import SandboxPage from './pages/SandboxPage';
 import ProfilePage from './pages/ProfilePage';
+import TestPage from './pages/TestPage';
+import ProblemPage from './pages/ProblemPage';
+import SimulationPage from './pages/SimulationPage';
 import './App.css';
 
 function Redirect({ to }: { to: string }) {
@@ -22,6 +26,16 @@ function Routes() {
   const path = useRoute();
 
   if (path === '/login') return <LoginPage />;
+
+  if (path === '/') {
+    return (
+      <AuthGuard>
+        <AppLayout activeLessonId={null}>
+          <HomePage />
+        </AppLayout>
+      </AuthGuard>
+    );
+  }
 
   const lessonMatch = matchRoute('/learn/:id', path);
   if (lessonMatch) {
@@ -54,6 +68,36 @@ function Routes() {
     );
   }
 
+  if (path === '/test') {
+    return (
+      <AuthGuard>
+        <AppLayout activeLessonId={null}>
+          <TestPage />
+        </AppLayout>
+      </AuthGuard>
+    );
+  }
+
+  if (path === '/problem') {
+    return (
+      <AuthGuard>
+        <AppLayout activeLessonId={null}>
+          <ProblemPage />
+        </AppLayout>
+      </AuthGuard>
+    );
+  }
+
+  if (path === '/simulation') {
+    return (
+      <AuthGuard>
+        <AppLayout activeLessonId={null}>
+          <SimulationPage />
+        </AppLayout>
+      </AuthGuard>
+    );
+  }
+
   if (path === '/profile') {
     return (
       <AuthGuard>
@@ -64,7 +108,7 @@ function Routes() {
     );
   }
 
-  return <Redirect to="/learn" />;
+  return <Redirect to="/" />;
 }
 
 export default function App() {

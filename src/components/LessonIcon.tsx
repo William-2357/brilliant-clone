@@ -104,6 +104,16 @@ const ICONS: Record<string, IconDef> = {
       </>
     ),
   },
+  'lf-final-test': {
+    color: '#0f9d8c',
+    node: (
+      <>
+        <path d="M2.5 9 12 5l9.5 4-9.5 4-9.5-4Z" {...S} />
+        <path d="M6 11v4c0 1.3 2.7 2.6 6 2.6s6-1.3 6-2.6v-4" {...S} />
+        <line x1="21.5" y1="9" x2="21.5" y2="13.5" {...S} />
+      </>
+    ),
+  },
 };
 
 const FALLBACK: IconDef = {
@@ -129,13 +139,18 @@ interface Props {
   size?: number;
   /** Kept for API compatibility; glyphs no longer draw a tinted tile. */
   tile?: boolean;
+  /** Tint the glyph with its per-lesson brand color (used in the sidebar). */
+  colored?: boolean;
   className?: string;
 }
 
-export default function LessonIcon({ lessonId, size = 24, tile = false, className }: Props) {
+export default function LessonIcon({ lessonId, size = 24, tile = false, colored = false, className }: Props) {
   const def = ICONS[lessonId] ?? FALLBACK;
   return (
-    <span className={`lesson-glyph ${tile ? 'glyph-box' : ''} ${className ?? ''}`}>
+    <span
+      className={`lesson-glyph ${tile ? 'glyph-box' : ''} ${className ?? ''}`}
+      style={colored ? { color: def.color } : undefined}
+    >
       <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden>
         {def.node}
       </svg>

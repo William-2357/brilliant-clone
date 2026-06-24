@@ -26,10 +26,18 @@ export interface UserStats {
   lastActiveDay: string | null;
   /** Total distinct days the learner has been active. */
   totalDaysActive: number;
+  /** Problems resolved per local calendar day (YYYY-MM-DD → count) — powers the activity heatmap. */
+  dailyActivity: Record<string, number>;
 }
 
 export function emptyStats(): UserStats {
-  return { currentStreak: 0, longestStreak: 0, lastActiveDay: null, totalDaysActive: 0 };
+  return {
+    currentStreak: 0,
+    longestStreak: 0,
+    lastActiveDay: null,
+    totalDaysActive: 0,
+    dailyActivity: {},
+  };
 }
 
 export interface ProgressAdapter {

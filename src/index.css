@@ -1,21 +1,22 @@
 :root {
   /* ---- Light theme (default) ---- */
-  --bg: #f4f6f8;
-  --bg-2: #eef1f4;
+  /* Warm off-white shell; pure-white cards sit on top of it. */
+  --bg: #f9f8f6;
+  --bg-2: #f1efea;
   --surface: #ffffff;
-  --surface-2: #f5f7f9;
-  --surface-3: #eef2f5;
-  --text-h: #15242c;
-  --text: #4a5a64;
-  --muted: #74838d;
-  --border: #e0e6ea;
-  --border-strong: #cdd6dc;
+  --surface-2: #f2f0ea;
+  --surface-3: #ebe8e0;
+  --text-h: #2c2c2a;
+  --text: #5f5e5a;
+  --muted: #888780;
+  --border: #d3d1c7;
+  --border-strong: #c4c1b5;
 
-  /* Accents are also read by the Canvas simulations — keep these names. */
-  --accent: #0f9d8c;
+  /* Teal — primary brand. Also read by the Canvas simulations (keep these names). */
+  --accent: #1d9e75;
   --accent-2: #2e7df6;
-  --accent-strong: #0b8576;
-  --accent-bg: rgba(15, 157, 140, 0.1);
+  --accent-strong: #0f6e56;
+  --accent-bg: #e1f5ee;
   --cyan: #0284c7;
 
   --good: #16a34a;
@@ -25,9 +26,22 @@
   --bad: #dc2626;
   --bad-bg: rgba(220, 38, 38, 0.1);
 
-  --ring-track: #e6ebee;
-  --grid-line: rgba(16, 40, 48, 0.05);
-  --grad: linear-gradient(95deg, #0f9d8c, #2e7df6);
+  --ring-track: #e7e4dc;
+  --grid-line: rgba(40, 36, 30, 0.05);
+  --grad: linear-gradient(95deg, #1d9e75, #2e7df6);
+
+  /* Brand teals for the home hero, progress fills, and segments. */
+  --hero-bg: #085041;
+  --teal-strong: #1d9e75;
+  --teal-soft: #9fe1cb;
+  /* "In progress" lessons — a lighter yellow-orange, distinct from done/green. */
+  --progress-doing: #f9c04a;
+
+  /* Amber — streak + achievement / milestone accents. */
+  --amber-text: #ba7517;
+  --amber-icon: #854f0b;
+  --amber-bg: #faeeda;
+  --amber-fill: #ef9f27;
 
   --shadow-sm: 0 1px 2px rgba(16, 36, 48, 0.06);
   --shadow: 0 2px 8px rgba(16, 36, 48, 0.07), 0 1px 2px rgba(16, 36, 48, 0.06);
@@ -77,6 +91,12 @@
   --ring-track: #283039;
   --grid-line: rgba(176, 196, 216, 0.05);
   --grad: linear-gradient(95deg, #2dd4bf, #3b82f6);
+
+  /* Amber reads brighter on dark (streak number/icons); --amber-fill stays vivid. */
+  --amber-text: #e9b15a;
+  --amber-icon: #e9b15a;
+  --amber-bg: rgba(239, 159, 39, 0.16);
+  --progress-doing: #fbbf24;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow: 0 2px 10px rgba(0, 0, 0, 0.4);

@@ -1,12 +1,13 @@
-import { lessons } from '../content/lessons';
+import { lessons, finalTest, gradableSteps } from '../content/lessons';
 import {
   lessonState,
   lessonProgressFraction,
   recommendNext,
   courseStats,
   masteryCurve,
-  dayKey,
-  dayDiff,
+  allLessonsCleared,
+  allQuestionsResolved,
+  problemResult,
 } from '../store/progress';
 import { useProgress } from '../hooks/useProgress';
 import { useUnlockAll } from '../hooks/useUnlockAll';
@@ -15,8 +16,8 @@ import LessonIcon, { LockIcon } from '../components/LessonIcon';
 import ProgressRing from '../components/ProgressRing';
 import MasteryCurve from '../components/MasteryCurve';
 import QuestionBar from '../components/QuestionBar';
+import ActivityHeatmap from '../components/ActivityHeatmap';
 import type { LessonState } from '../types/lesson';
-import type { UserStats } from '../lib/storage';
 
 const STATE_LABEL: Record<LessonState, string> = {
   locked: 'Locked',
@@ -25,36 +26,6 @@ const STATE_LABEL: Record<LessonState, string> = {
   cleared: 'Cleared',
   mastered: 'Mastered',
 };
-
-const DAY_INITIAL = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-
-interface WeekCell {
-  label: string;
-  on: boolean;
-  today: boolean;
-}
-
-/**
- * The last 7 calendar days (ending today). A day is "on" if it falls within the
- * current streak window (the consecutive days ending on `lastActiveDay`). This
- * only marks days we can actually back with stored data, never invented ones.
- */
-function weekCells(stats: UserStats): WeekCell[] {
-  const cells: WeekCell[] = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    d.setDate(d.getDate() - i);
-    const key = dayKey(d.getTime());
-    let on = false;
-    if (stats.lastActiveDay && stats.currentStreak > 0) {
-      const back = dayDiff(key, stats.lastActiveDay); // lastActiveDay - key
-      on = back >= 0 && back <= stats.currentStreak - 1;
-    }
-    cells.push({ label: DAY_INITIAL[d.getDay()], on, today: i === 0 });
-  }
-  return cells;
-}
 
 export default function CoursePage() {
   const progress = useProgress();
@@ -66,9 +37,14 @@ export default function CoursePage() {
 
   const next = recommendNext(lessons, progress.all);
   const stats = courseStats(lessons, progress.all);
-  const { currentStreak, longestStreak } = progress.stats;
+  const testUnlocked = unlockAll || allLessonsCleared(lessons, progress.all);
+  const testProgress = progress.all[finalTest.id];
+  const testTotal = gradableSteps(finalTest).length;
+  const testScore = allQuestionsResolved(finalTest, testProgress)
+    ? gradableSteps(finalTest).filter((s) => problemResult(testProgress, s.id) === 'green').length
+    : null;
+  const { currentStreak } = progress.stats;
   const curve = masteryCurve(lessons, progress.all);
-  const cells = weekCells(progress.stats);
   const masteryPct = Math.round(stats.masteryFraction * 100);
   const firstTry =
     stats.problemsResolved > 0
@@ -78,10 +54,11 @@ export default function CoursePage() {
   return (
     <div className="page course">
       <header className="page-head">
-        <p className="page-eyebrow">The Long Run</p>
-        <h1 className="page-title">Probability &amp; Statistics</h1>
+        <p className="page-eyebrow">Course</p>
+        <h1 className="page-title">All lessons</h1>
         <p className="page-sub">
-          Predict, simulate, verify. Short, hands-on sessions for the curious adult learner.
+          Every lesson in Probability &amp; Statistics — predict, simulate, verify, one short
+          hands-on session at a time.
         </p>
       </header>
 
@@ -155,6 +132,31 @@ export default function CoursePage() {
               );
             })}
           </ol>
+
+          <button
+            type="button"
+            className="resume-card final-test-cta"
+            disabled={!testUnlocked}
+            onClick={() => testUnlocked && navigate('/test')}
+          >
+            <LessonIcon lessonId={finalTest.id} size={28} tile className="resume-icon" />
+            <span className="resume-body">
+              <span className="resume-eyebrow">
+                {!testUnlocked ? 'Locked' : testScore != null ? 'Completed' : 'Capstone'}
+              </span>
+              <span className="resume-title">{finalTest.title}</span>
+              <span className="resume-sub">
+                {!testUnlocked
+                  ? 'Clear all eight lessons to unlock'
+                  : testScore != null
+                    ? `Last score ${testScore}/${testTotal} · retake anytime`
+                    : `${testTotal} questions spanning every lesson`}
+              </span>
+            </span>
+            <span className="resume-go" aria-hidden>
+              {testUnlocked ? '→' : <LockIcon size={16} />}
+            </span>
+          </button>
         </div>
 
         <aside className="course-aside">
@@ -188,29 +190,10 @@ export default function CoursePage() {
             </div>
           </div>
 
-          <div className="panel streak-panel">
-            <div className="streak-head">
-              <p className="streak-lab">This week</p>
-              <span className="streak-meta">
-                {currentStreak > 0 ? (
-                  <>
-                    <b>{currentStreak}-day</b> streak
-                  </>
-                ) : (
-                  'No streak yet'
-                )}{' '}
-                · best {longestStreak}
-              </span>
-            </div>
-            <div className="weekstrip" role="img" aria-label={`${currentStreak} day streak this week`}>
-              {cells.map((c, i) => (
-                <div key={i} className={`day ${c.on ? 'on' : ''} ${c.today ? 'today' : ''}`}>
-                  <i />
-                  <span>{c.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          <ActivityHeatmap
+            activity={progress.stats.dailyActivity ?? {}}
+            currentStreak={currentStreak}
+          />
         </aside>
       </div>
     </div>

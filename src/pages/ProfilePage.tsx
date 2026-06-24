@@ -5,8 +5,6 @@ import {
   lessonState,
   lessonProgressFraction,
   isCleared,
-  dayKey,
-  dayDiff,
 } from '../store/progress';
 import { useProgress } from '../hooks/useProgress';
 import { useAuth } from '../hooks/useAuth';
@@ -17,8 +15,8 @@ import LessonIcon, { LockIcon } from '../components/LessonIcon';
 import ProgressRing from '../components/ProgressRing';
 import MasteryCurve from '../components/MasteryCurve';
 import QuestionBar from '../components/QuestionBar';
+import ActivityHeatmap from '../components/ActivityHeatmap';
 import type { LessonState } from '../types/lesson';
-import type { UserStats } from '../lib/storage';
 
 const STATE_LABEL: Record<LessonState, string> = {
   locked: 'Locked',
@@ -28,31 +26,14 @@ const STATE_LABEL: Record<LessonState, string> = {
   mastered: 'Mastered',
 };
 
-const DAY_INITIAL = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-
-interface WeekCell {
-  label: string;
-  on: boolean;
-  today: boolean;
-}
-
-/** Last 7 calendar days; a day is "on" if it falls in the current streak window. */
-function weekCells(stats: UserStats): WeekCell[] {
-  const cells: WeekCell[] = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    d.setDate(d.getDate() - i);
-    const key = dayKey(d.getTime());
-    let on = false;
-    if (stats.lastActiveDay && stats.currentStreak > 0) {
-      const back = dayDiff(key, stats.lastActiveDay);
-      on = back >= 0 && back <= stats.currentStreak - 1;
-    }
-    cells.push({ label: DAY_INITIAL[d.getDay()], on, today: i === 0 });
-  }
-  return cells;
-}
+/** Shared stroke style for the aside-card header glyphs (mirrors the home cards). */
+const ICO = {
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 1.8,
+  strokeLinecap: 'round' as const,
+  strokeLinejoin: 'round' as const,
+};
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -75,7 +56,6 @@ export default function ProfilePage() {
   const stats = courseStats(lessons, progress.all);
   const { currentStreak, longestStreak, totalDaysActive } = progress.stats;
   const curve = masteryCurve(lessons, progress.all);
-  const cells = weekCells(progress.stats);
   const masteryPct = Math.round(stats.masteryFraction * 100);
   const firstTry =
     stats.problemsResolved > 0
@@ -181,36 +161,26 @@ export default function ProfilePage() {
         </div>
 
         <aside className="course-aside">
-          <div className="panel streak-panel">
-            <div className="streak-head">
-              <p className="streak-lab">This week</p>
-              <span className="streak-meta">
-                {currentStreak > 0 ? (
-                  <>
-                    <b>{currentStreak}-day</b> streak
-                  </>
-                ) : (
-                  'No streak yet'
-                )}{' '}
-                · best {longestStreak}
-              </span>
-            </div>
-            <div
-              className="weekstrip"
-              role="img"
-              aria-label={`${currentStreak} day streak this week`}
-            >
-              {cells.map((c, i) => (
-                <div key={i} className={`day ${c.on ? 'on' : ''} ${c.today ? 'today' : ''}`}>
-                  <i />
-                  <span>{c.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          <ActivityHeatmap
+            activity={progress.stats.dailyActivity ?? {}}
+            currentStreak={currentStreak}
+          />
 
           <div className="panel">
-            <p className="panel-title">Preferences</p>
+            <div className="aside-card-head">
+              <span className="home-card-ico" style={{ color: 'var(--accent)' }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" {...ICO} aria-hidden>
+                  <line x1="4" y1="8" x2="20" y2="8" />
+                  <line x1="4" y1="16" x2="20" y2="16" />
+                  <circle cx="9" cy="8" r="2.4" fill="var(--surface)" />
+                  <circle cx="15" cy="16" r="2.4" fill="var(--surface)" />
+                </svg>
+              </span>
+              <div className="aside-card-htext">
+                <span className="aside-card-title">Preferences</span>
+                <span className="aside-card-sub">Theme &amp; navigation</span>
+              </div>
+            </div>
             <div className="pref-block">
               <span className="pref-label">Appearance</span>
               <div className="theme-seg" role="group" aria-label="Theme">

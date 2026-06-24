@@ -7,14 +7,18 @@ import { recommendNext, allQuestionsResolved } from '../store/progress';
 import { useProgress } from '../hooks/useProgress';
 import { simulations } from '../simulations';
 import { isCorrect } from '../lib/probability';
+import { parseNumericInput, answerHint } from '../lib/answer';
 import { fireConfetti } from '../lib/confetti';
 import FeedbackBanner from './FeedbackBanner';
 import MilestoneBanner from './MilestoneBanner';
 import CompletionScreen from './CompletionScreen';
+import LessonReview from './LessonReview';
 import QuestionBar from './QuestionBar';
 import LectureContent from './LectureContent';
 import OrderItems from './OrderItems';
 import DrawDistribution from './DrawDistribution';
+import PredictScale from './PredictScale';
+import WheelSegments from './WheelSegments';
 import SpeedControl from './SpeedControl';
 import { navigate } from '../lib/router';
 
@@ -34,6 +38,8 @@ export default function LessonPlayer({ lesson }: Props) {
   // State for the non-numeric interactions: a ranking and a sketched shape.
   const [order, setOrder] = useState<number[]>([]);
   const [drawn, setDrawn] = useState<number[]>([]);
+  // Wheel-segment probabilities for the "make the game fair" interaction.
+  const [probs, setProbs] = useState<number[]>([]);
   const [inputError, setInputError] = useState('');
   const [correct, setCorrect] = useState(false);
   // True once a question has reached its terminal outcome (green/yellow/red).
@@ -42,6 +48,8 @@ export default function LessonPlayer({ lesson }: Props) {
   const [showReview, setShowReview] = useState(false);
   const [milestone, setMilestone] = useState('');
   const [completed, setCompleted] = useState(false);
+  // True while re-reading a completed lesson read-only (vs. the completion summary).
+  const [reviewing, setReviewing] = useState(false);
   const [showLecture, setShowLecture] = useState(false);
   // Generated-question pool cursor: `seed` is the learner's stable base, `attempt`
   // advances on each lesson replay, and `retry` advances on the second try of a
@@ -63,6 +71,7 @@ export default function LessonPlayer({ lesson }: Props) {
     setAttempt(p.attempt ?? 0);
     setStepIndex(idx >= 0 ? idx : 0);
     setCompleted(allQuestionsResolved(lesson, p));
+    setReviewing(false);
     setMilestone('');
     /* eslint-enable react-hooks/set-state-in-effect */
     resetStepUi();
@@ -102,6 +111,17 @@ export default function LessonPlayer({ lesson }: Props) {
         ? new Array(step.drawCategories.length).fill(0)
         : [],
     );
+    if (step?.interaction === 'slider') {
+      const lo = step.sliderMin ?? 0;
+      const hi = step.sliderMax ?? 1;
+      const st = step.sliderStep ?? 0.01;
+      setGuess(String(Math.round((lo + hi) / 2 / st) * st));
+    }
+    setProbs(
+      step?.interaction === 'wheel' && step.wheelPayouts?.length
+        ? new Array(step.wheelPayouts.length).fill(1 / step.wheelPayouts.length)
+        : [],
+    );
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [step]);
 
@@ -137,9 +157,15 @@ export default function LessonPlayer({ lesson }: Props) {
       const tv = 0.5 * dist.reduce((acc, d, i) => acc + Math.abs(d - (truth[i] ?? 0)), 0);
       return tv <= (currentStep.tolerance ?? 0.15);
     }
-    const value = parseFloat(guess);
-    if (Number.isNaN(value)) {
-      setInputError('Enter a number (e.g. 0.5).');
+    if (interaction === 'wheel') {
+      const payouts = currentStep.wheelPayouts ?? [];
+      const ev = payouts.reduce((s, v, i) => s + v * (probs[i] ?? 0), 0);
+      return isCorrect(ev, currentStep.answer ?? 0, currentStep.tolerance ?? 0);
+    }
+    // numeric and slider both grade a single value against `answer`.
+    const value = parseNumericInput(guess);
+    if (value === null) {
+      setInputError('Enter a number — a decimal or fraction, e.g. 0.5 or 1/2.');
       return null;
     }
     return isCorrect(value, currentStep.answer ?? 0, currentStep.tolerance ?? 0);
@@ -160,8 +186,14 @@ export default function LessonPlayer({ lesson }: Props) {
       setPhase('feedback');
       return;
     }
-    setPhase('running');
-    setRunSignal((n) => n + 1);
+    // The wheel interaction has no batch sim to run — resolve immediately.
+    const hasSim = currentStep.interaction !== 'wheel' && !!currentStep.simulation;
+    if (hasSim) {
+      setPhase('running');
+      setRunSignal((n) => n + 1);
+    } else {
+      onSettled(currentStep);
+    }
   }
 
   function onSettled(currentStep: LessonStep) {
@@ -214,6 +246,7 @@ export default function LessonPlayer({ lesson }: Props) {
   }
 
   function retryLesson() {
+    setReviewing(false);
     progress.resetLessonResults(lesson);
     setSeed(progress.get(lesson.id)?.seed ?? hashString(lesson.id));
     setAttempt(progress.get(lesson.id)?.attempt ?? 0);
@@ -239,6 +272,14 @@ export default function LessonPlayer({ lesson }: Props) {
   if (!step) return <div className="center-note">This lesson is coming soon.</div>;
 
   if (completed) {
+    if (reviewing) {
+      return (
+        <LessonReview
+          lesson={lesson}
+          onExit={() => setReviewing(false)}
+        />
+      );
+    }
     const p = progress.get(lesson.id);
     const next = recommendNext(lessons, progress.all);
     const nextLesson = next && next.id !== lesson.id ? next : null;
@@ -250,6 +291,7 @@ export default function LessonPlayer({ lesson }: Props) {
         mastered={p?.mastered ?? false}
         nextLesson={nextLesson}
         onNext={() => nextLesson && navigate(`/learn/${nextLesson.id}`)}
+        onReview={() => setReviewing(true)}
         onRetry={retryLesson}
         onBackToCourse={() => navigate('/learn')}
       />
@@ -273,6 +315,8 @@ export default function LessonPlayer({ lesson }: Props) {
       truthLine = `Most to least likely: ${(step.answerOrder ?? []).join(' › ')}.`;
     } else if (interaction === 'draw') {
       truthLine = 'The blue outline is the true distribution.';
+    } else if (interaction === 'wheel') {
+      truthLine = `A fair wheel has an expected payout of $${step.answer}.`;
     } else {
       truthLine =
         step.unit === 'sum' || step.unit === 'count'
@@ -375,17 +419,30 @@ export default function LessonPlayer({ lesson }: Props) {
       ) : (
         <div className="player-stage">
           <section className="player-sim">
-            {Sim && (
-              <Sim
-                key={`${step.id}:${seed}:${attempt}:${retry}`}
-                config={step.simConfig ?? {}}
-                mode="verify"
-                runSignal={runSignal}
-                onSettled={() => onSettled(step)}
+            {interaction === 'wheel' ? (
+              <WheelSegments
+                payouts={step.wheelPayouts ?? []}
+                probs={probs}
+                onChange={setProbs}
+                target={step.answer ?? 0}
+                disabled={phase !== 'predict'}
+                reveal={showTruth}
               />
+            ) : (
+              <>
+                {Sim && (
+                  <Sim
+                    key={`${step.id}:${seed}:${attempt}:${retry}`}
+                    config={step.simConfig ?? {}}
+                    mode="verify"
+                    runSignal={runSignal}
+                    onSettled={() => onSettled(step)}
+                  />
+                )}
+                {phase === 'running' && <p className="player-running">Running the simulation…</p>}
+                {Sim && <SpeedControl />}
+              </>
             )}
-            {phase === 'running' && <p className="player-running">Running the simulation…</p>}
-            {Sim && <SpeedControl />}
           </section>
 
           <aside className="player-panel">
@@ -400,16 +457,30 @@ export default function LessonPlayer({ lesson }: Props) {
                 {interaction === 'numeric' && (
                   <>
                     <input
-                      type="number"
-                      inputMode="decimal"
-                      step="any"
+                      type="text"
+                      inputMode="text"
+                      autoComplete="off"
                       className="predict-input"
                       placeholder="Your prediction"
                       value={guess}
                       onChange={(e) => setGuess(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && lockPrediction(step)}
                     />
-                    {step.unit && <span className="predict-unit">Answer as a {step.unit}.</span>}
+                    <span className="predict-unit">{answerHint(step.unit)}</span>
+                  </>
+                )}
+
+                {interaction === 'slider' && (
+                  <>
+                    <span className="predict-unit">Drag the handle to your prediction.</span>
+                    <PredictScale
+                      min={step.sliderMin ?? 0}
+                      max={step.sliderMax ?? 1}
+                      step={step.sliderStep ?? 0.01}
+                      value={guess === '' ? (step.sliderMin ?? 0) : Number(guess)}
+                      onChange={(v) => setGuess(String(v))}
+                      unit={step.unit}
+                    />
                   </>
                 )}
 
@@ -431,13 +502,23 @@ export default function LessonPlayer({ lesson }: Props) {
                   </>
                 )}
 
+                {interaction === 'wheel' && (
+                  <span className="predict-unit">
+                    Drag the dividers on the wheel so its expected payout meets the target.
+                  </span>
+                )}
+
                 {inputError && <span className="predict-error">{inputError}</span>}
                 <button
                   type="button"
                   className="btn btn-primary btn-block"
                   onClick={() => lockPrediction(step)}
                 >
-                  {triesRef.current === 0 ? 'Lock in & run' : 'Lock in second try'}
+                  {interaction === 'wheel'
+                    ? 'Check the wheel'
+                    : triesRef.current === 0
+                      ? 'Lock in & run'
+                      : 'Lock in second try'}
                 </button>
               </div>
             )}
@@ -479,6 +560,19 @@ export default function LessonPlayer({ lesson }: Props) {
                     showTruth
                     disabled
                     onChange={() => {}}
+                  />
+                )}
+                {showTruth && interaction === 'slider' && (
+                  <PredictScale
+                    min={step.sliderMin ?? 0}
+                    max={step.sliderMax ?? 1}
+                    step={step.sliderStep ?? 0.01}
+                    value={Number(guess)}
+                    onChange={() => {}}
+                    unit={step.unit}
+                    truth={step.answer}
+                    showTruth
+                    disabled
                   />
                 )}
                 {showReview && conceptStep && (
