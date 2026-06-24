@@ -66,10 +66,3 @@ export function simPalette(): SimPalette {
     gridLine: cssVar('--grid-line', 'rgba(16,40,48,0.05)'),
   };
 }
-
-/** Draw a binomial-sample step: returns heads count for `flips` trials with prob p. */
-export function sampleHeads(flips: number, p: number): number {
-  let h = 0;
-  for (let i = 0; i < flips; i++) if (Math.random() < p) h++;
-  return h;
-}

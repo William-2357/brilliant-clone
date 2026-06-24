@@ -39,7 +39,7 @@ import {
 } from '../lib/probability';
 import { wheelConfig } from './simData';
 
-export interface ProblemTemplate {
+interface ProblemTemplate {
   /** Stable slot id — must match a problem step id in lessons.ts. */
   id: string;
   build: (r: Rng) => LessonStep;
@@ -1189,7 +1189,7 @@ const cltDrawT: ProblemTemplate = {
 
 /* ============================ Registry ============================ */
 
-export const problemTemplates: Record<string, ProblemTemplate[]> = {
+const problemTemplates: Record<string, ProblemTemplate[]> = {
   'l1-coin-flip': [
     coinFractionT('l1-s2', 0.4, 0.6),
     coinFractionT('l1-s3', 0.2, 0.8),

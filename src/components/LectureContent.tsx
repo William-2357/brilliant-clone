@@ -3,8 +3,6 @@ import type { LessonStep } from '../types/lesson';
 
 interface Props {
   step: LessonStep | undefined;
-  /** Hide the lead paragraph (e.g. when the body is already shown elsewhere). */
-  hideLead?: boolean;
 }
 
 function renderTeX(tex: string, displayMode: boolean): string {
@@ -32,11 +30,11 @@ export function InlineText({ text }: { text: string }) {
 }
 
 /** Renders a concept step's lecture: a lead paragraph plus structured sections. */
-export default function LectureContent({ step, hideLead }: Props) {
+export default function LectureContent({ step }: Props) {
   if (!step) return null;
   return (
     <div className="lecture">
-      {!hideLead && step.body && (
+      {step.body && (
         <p className="lecture-lead">
           <InlineText text={step.body} />
         </p>

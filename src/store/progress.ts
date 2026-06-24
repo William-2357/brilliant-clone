@@ -13,7 +13,7 @@ export function dayKey(ts: number): string {
 }
 
 /** Whole-day difference between two YYYY-MM-DD keys (b - a). */
-export function dayDiff(a: string, b: string): number {
+function dayDiff(a: string, b: string): number {
   const [ay, am, ad] = a.split('-').map(Number);
   const [by, bm, bd] = b.split('-').map(Number);
   const aMs = Date.UTC(ay, am - 1, ad);
@@ -130,10 +130,6 @@ export function lessonState(
   if (p?.cleared) return 'cleared';
   if (p && (p.attempts > 0 || Object.keys(p.results ?? {}).length > 0)) return 'in-progress';
   return 'available';
-}
-
-export function isLessonUnlocked(lesson: Lesson, all: ProgressMap, unlockAll = false): boolean {
-  return lessonState(lesson, all, unlockAll) !== 'locked';
 }
 
 export interface CourseStats {

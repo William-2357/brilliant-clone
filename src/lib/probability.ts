@@ -5,7 +5,7 @@
  */
 
 /** n choose k, computed multiplicatively to avoid overflow for the n we use. */
-export function choose(n: number, k: number): number {
+function choose(n: number, k: number): number {
   if (k < 0 || k > n) return 0;
   k = Math.min(k, n - k);
   let result = 1;
@@ -142,7 +142,7 @@ export function dieMean(): number {
 }
 
 /** Variance of one fair six-sided die: E[X²] − E[X]² = 91/6 − 3.5² = 35/12. */
-export function dieVariance(): number {
+function dieVariance(): number {
   return 35 / 12;
 }
 
@@ -174,7 +174,7 @@ export function rankBy(
 }
 
 /** Exact pmf of the sum of `m` fair six-sided dice, as a { sum -> probability } map. */
-export function diceSumPmf(m: number): Map<number, number> {
+function diceSumPmf(m: number): Map<number, number> {
   let dist = new Map<number, number>();
   for (let f = 1; f <= 6; f++) dist.set(f, 1 / 6);
   for (let i = 1; i < m; i++) {

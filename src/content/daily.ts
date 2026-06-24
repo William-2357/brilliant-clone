@@ -18,7 +18,7 @@ export interface DailyPick {
 }
 
 /** Every typeable (numeric) problem across the course — the daily problem pool. */
-export function numericPool(): DailyPick[] {
+function numericPool(): DailyPick[] {
   const pool: DailyPick[] = [];
   for (const lesson of lessons) {
     if (lesson.status !== 'built') continue;

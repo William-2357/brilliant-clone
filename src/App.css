@@ -55,7 +55,6 @@
 .btn-block {
   width: 100%;
 }
-.link-btn,
 .back-link {
   background: none;
   border: none;
@@ -65,15 +64,6 @@
 }
 .back-link:hover {
   color: var(--accent-strong);
-}
-
-.icon-tile {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  flex: none;
 }
 
 /* Monochrome lesson glyph (no tinted chip). Inherits color from context. */
@@ -365,11 +355,6 @@
   font-weight: 700;
   font-size: 14px;
 }
-.avatar-lg {
-  width: 46px;
-  height: 46px;
-  font-size: 16px;
-}
 .profile-trigger:hover .avatar,
 .profile-trigger.active .avatar {
   box-shadow: 0 0 0 3px var(--accent-bg);
@@ -378,79 +363,6 @@
   width: 64px;
   height: 64px;
   font-size: 22px;
-}
-.profile-menu {
-  position: absolute;
-  top: calc(100% + 10px);
-  right: 0;
-  width: 296px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-lg);
-  padding: 16px;
-  z-index: 50;
-}
-.profile-head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--border);
-}
-.profile-id {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.profile-name {
-  font-weight: 700;
-  color: var(--text-h);
-}
-.profile-email {
-  font-size: 12px;
-  color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.profile-stats {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin: 14px 0;
-}
-.pstat {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px 12px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-}
-.pstat-value {
-  font-size: 18px;
-  font-weight: 800;
-  color: var(--text-h);
-}
-.pstat-label {
-  font-size: 11px;
-  color: var(--muted);
-}
-.profile-row {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 0;
-  border-top: 1px solid var(--border);
-}
-.profile-row-label {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
 }
 .theme-seg {
   display: flex;
@@ -699,19 +611,6 @@
   font-size: 13px;
   color: var(--muted);
 }
-.lcard-bar {
-  margin-top: 4px;
-  height: 5px;
-  border-radius: 999px;
-  background: var(--ring-track);
-  overflow: hidden;
-}
-.lcard-bar-fill {
-  display: block;
-  height: 100%;
-  border-radius: 999px;
-  transition: width 0.4s ease;
-}
 .lcard-lock {
   color: var(--muted);
 }
@@ -877,66 +776,6 @@
   font-size: 15px;
   font-weight: 800;
   color: var(--text-h);
-}
-
-/* Streak: week strip */
-.streak-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-.streak-lab {
-  margin: 0;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-.streak-meta {
-  font-size: 12px;
-  color: var(--muted);
-}
-.streak-meta b {
-  color: var(--amber-text);
-  font-weight: 800;
-}
-.weekstrip {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 6px;
-}
-.day {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-}
-.day i {
-  width: 100%;
-  height: 30px;
-  border-radius: 8px;
-  background: var(--surface-3);
-  border: 1px solid var(--border);
-  transition: background 0.15s ease;
-}
-.day.on i {
-  background: var(--amber-fill);
-  border-color: transparent;
-}
-.day.today i {
-  box-shadow: 0 0 0 3px var(--amber-bg);
-  border-color: var(--amber-fill);
-}
-.day span {
-  font-size: 11px;
-  color: var(--muted);
-}
-.day.today span {
-  color: var(--amber-text);
-  font-weight: 700;
 }
 
 /* Home dashboard */
@@ -1196,33 +1035,6 @@
   color: var(--muted);
 }
 
-/* Streak card (right rail) */
-.streak-card {
-  display: flex;
-  flex-direction: column;
-}
-.streak-num {
-  font-family: var(--font-display);
-  font-size: 38px;
-  font-weight: 700;
-  line-height: 1;
-  color: var(--amber-text);
-  font-variant-numeric: tabular-nums;
-}
-.streak-sub {
-  margin: 4px 0 14px;
-  font-size: 12px;
-  color: var(--muted);
-}
-.streak-card .weekstrip {
-  gap: 7px;
-}
-.streak-card .day i {
-  width: 18px;
-  height: 18px;
-  border-radius: 5px;
-}
-
 /* Activity calendar — month heatmap with day-of-week columns + month switcher. */
 .heatmap-card {
   display: flex;
@@ -1323,10 +1135,6 @@
 }
 .heatmap-flame {
   color: var(--amber-text);
-}
-.heatmap-meta {
-  font-size: 12px;
-  color: var(--muted);
 }
 .heatmap-legend {
   display: inline-flex;
@@ -1941,38 +1749,56 @@
   color: var(--muted);
 }
 
+/* Concept step: lecture beside a sticky simulation, filling the width. */
+.concept-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 22px;
+  align-items: start;
+  margin-bottom: 18px;
+}
+.concept-lecture {
+  min-width: 0;
+}
+.concept-lecture .lecture-panel {
+  max-width: none;
+  margin-bottom: 0;
+}
+.concept-sim {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.concept-sim .player-sim .sim,
+.concept-sim .player-sim .speed-control {
+  max-width: none;
+  margin: 0;
+}
+
 @media (min-width: 920px) {
   .player-stage {
     grid-template-columns: minmax(0, 1fr) 288px;
     align-items: start;
   }
+  /* Lesson review reuses the stage but stays single-column (answer above sim). */
+  .player-stage--solo {
+    grid-template-columns: 1fr;
+  }
   .player-panel {
     position: sticky;
     top: calc(var(--topbar-h) + 20px);
   }
-  /* Concept step stays single-column so the sim spans the lecture width. */
-  .player-stage--solo {
-    grid-template-columns: 1fr;
+  /* Concept step: lecture (flexible) beside the simulation. */
+  .concept-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 440px);
+  }
+  .concept-sim {
+    position: sticky;
+    top: calc(var(--topbar-h) + 20px);
   }
 }
 
-/* Concept step: hint on top, full-width graph (matched to the lecture), then Continue. */
-.player-stage--solo {
-  grid-template-columns: 1fr;
-  gap: 16px;
-}
-.explore-hint {
-  max-width: 760px;
-}
-.player-stage--solo .player-sim .sim {
-  max-width: 760px;
-  margin: 0;
-}
-.player-stage--solo .player-sim .speed-control {
-  max-width: 760px;
-  margin-left: 0;
-  margin-right: 0;
-}
 .explore-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1981,12 +1807,6 @@
 }
 .explore-continue {
   min-width: 220px;
-}
-.explore-shuffle {
-  color: var(--muted);
-}
-.explore-shuffle:hover {
-  color: var(--accent-strong);
 }
 
 /* Simulation surface */

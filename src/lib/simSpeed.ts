@@ -29,7 +29,7 @@ export function getSimSpeed(): number {
   return current;
 }
 
-export function setSimSpeed(v: number): void {
+function setSimSpeed(v: number): void {
   current = clamp(v);
   try {
     localStorage.setItem(KEY, String(current));

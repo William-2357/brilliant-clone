@@ -258,17 +258,6 @@ export default function LessonPlayer({ lesson }: Props) {
     resetStepUi();
   }
 
-  // Re-roll a fresh set of questions from the pool (used from the concept step).
-  function newQuestions() {
-    progress.resetLessonResults(lesson);
-    setSeed(progress.get(lesson.id)?.seed ?? hashString(lesson.id));
-    setAttempt(progress.get(lesson.id)?.attempt ?? 0);
-    setCompleted(false);
-    setStepIndex(0);
-    progress.setCurrentStep(lesson.id, lesson.steps[0]?.id ?? '');
-    resetStepUi();
-  }
-
   if (!step) return <div className="center-note">This lesson is coming soon.</div>;
 
   if (completed) {
@@ -368,12 +357,6 @@ export default function LessonPlayer({ lesson }: Props) {
         )}
       </header>
 
-      {step.type === 'concept' && (
-        <div className="lecture-panel">
-          <LectureContent step={step} />
-        </div>
-      )}
-
       {step.type === 'problem' && showLecture && conceptStep && (
         <div className="lecture-panel lecture-review">
           <div className="lecture-review-head">
@@ -392,30 +375,36 @@ export default function LessonPlayer({ lesson }: Props) {
       )}
 
       {step.type === 'concept' ? (
-        <div className="player-stage player-stage--solo">
-          <p className="panel-hint explore-hint">
-            Explore freely, then continue when you&rsquo;re ready.
-          </p>
-          <section className="player-sim">
-            {Sim && (
-              <Sim
-                key={`${step.id}:${seed}:${attempt}`}
-                config={step.simConfig ?? {}}
-                mode="explore"
-                runSignal={0}
-              />
-            )}
-            {Sim && <SpeedControl />}
-          </section>
+        <>
+          <div className="concept-grid">
+            <div className="concept-lecture">
+              <div className="lecture-panel">
+                <LectureContent step={step} />
+              </div>
+            </div>
+            <div className="concept-sim">
+              <p className="panel-hint explore-hint">
+                Explore the simulation freely, then continue when you&rsquo;re ready.
+              </p>
+              <section className="player-sim">
+                {Sim && (
+                  <Sim
+                    key={`${step.id}:${seed}:${attempt}`}
+                    config={step.simConfig ?? {}}
+                    mode="explore"
+                    runSignal={0}
+                  />
+                )}
+                {Sim && <SpeedControl />}
+              </section>
+            </div>
+          </div>
           <div className="explore-actions">
             <button type="button" className="btn btn-primary explore-continue" onClick={advance}>
               Continue
             </button>
-            <button type="button" className="btn explore-shuffle" onClick={newQuestions}>
-              ↻ New questions
-            </button>
           </div>
-        </div>
+        </>
       ) : (
         <div className="player-stage">
           <section className="player-sim">

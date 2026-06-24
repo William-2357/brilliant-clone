@@ -9,7 +9,7 @@ export type SimulationType =
   | 'randomWalk'
   | 'clt';
 
-export type StepType = 'concept' | 'problem';
+type StepType = 'concept' | 'problem';
 
 /**
  * How the learner commits a prediction on a problem step:
@@ -19,9 +19,9 @@ export type StepType = 'concept' | 'problem';
  *   draw    — sketch a distribution's bar heights before the truth is revealed
  *   wheel   — drag prize-wheel segment probabilities to hit a target expected value
  */
-export type InteractionType = 'numeric' | 'slider' | 'order' | 'draw' | 'wheel';
+type InteractionType = 'numeric' | 'slider' | 'order' | 'draw' | 'wheel';
 
-export interface StepFeedback {
+interface StepFeedback {
   correct: string;
   incorrect: string;
 }
@@ -30,7 +30,7 @@ export interface StepFeedback {
  * A section of a lecture (concept step). `text` may contain blank-line-separated
  * paragraphs; `formula` renders as a centered, monospaced display line.
  */
-export interface LectureSection {
+interface LectureSection {
   heading?: string;
   text: string;
   formula?: string;
@@ -81,7 +81,7 @@ export interface LessonStep {
   wheelPayouts?: number[];
 }
 
-export type LessonStatus = 'built' | 'coming-soon';
+type LessonStatus = 'built' | 'coming-soon';
 
 export interface Lesson {
   id: string;

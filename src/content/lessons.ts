@@ -82,6 +82,16 @@ export const lessons: Lesson[] = [
             formula: '\\operatorname{SD}(\\bar{X}_N) = \\sqrt{\\dfrac{p(1-p)}{N}}',
           },
           {
+            heading: 'The complement rule',
+            text: 'Every trial lands in exactly one of two camps — the event or its opposite — so their probabilities must sum to one. If an outcome has probability $p$, its complement has probability $1 - p$. This is often the quickest route to an answer: to find the chance of “not heads,” or that a 30%-heads coin comes up tails, subtract from one rather than recount. The simulation converges to whichever rate you ask about.',
+            formula: 'P(\\text{not } A) = 1 - P(A)',
+          },
+          {
+            heading: 'From a probability to a count',
+            text: 'A fraction tells you the share; a count tells you how many. Because each of $N$ independent trials succeeds with probability $p$, the expected number of successes is that fraction scaled up by the number of trials, $N p$. So about 500 of 1000 fair flips are heads, and about 300 are heads for a coin biased to $p = 0.3$. The realized count wobbles around $N p$ with standard deviation $\\sqrt{N p (1 - p)}$ — the same $\\sqrt{N}$-style spread as before.',
+            formula: 'E[\\text{successes}] = N\\,p',
+          },
+          {
             heading: 'No memory: the gambler’s fallacy',
             text: 'Each flip is independent, so conditioning on the past changes nothing: $P(\\text{heads} \\mid \\text{history}) = p$. A streak of heads does not make tails “due.” The long-run average is restored by dilution across many future trials, never by a corrective force acting on the next flip.',
           },
@@ -203,6 +213,11 @@ export const lessons: Lesson[] = [
           {
             heading: 'The peak at seven',
             text: 'Seven is reachable from every face of the first die paired with a complementary face of the second (1+6, 2+5, 3+4, and their reverses). More decompositions mean higher probability, so 7 sits at the peak with probability 6/36 = 1/6.',
+          },
+          {
+            heading: 'From probabilities to counts',
+            text: 'Scaling a probability by the number of rolls turns it into an expected tally. If a total $s$ can be made $w_s$ ways, it occurs with probability $w_s/36$, so across $N$ rolls you expect about $N\\,w_s/36$ of them. A seven ($w_7 = 6$) fills about a sixth of all rolls, while snake eyes ($w_2 = 1$) appears in only about $N/36$ — rare totals stay rare in proportion to their few combinations.',
+            formula: 'E[\\#\\,\\text{rolls totalling } s] = N\\cdot\\frac{w_s}{36}',
           },
         ],
       },
@@ -327,6 +342,11 @@ export const lessons: Lesson[] = [
           {
             heading: 'Center and spread',
             text: 'For $n$ rows with $p = 1/2$, the mean bin is $np = n/2$ and the variance is $np(1-p) = n/4$, so the spread grows only like $\\sqrt{n}/2$. The bulk of outcomes lies within a few standard deviations of center, and the two outermost bins together hold only $2\\cdot(1/2)^n$ of the probability.',
+          },
+          {
+            heading: 'From fractions to ball counts',
+            text: 'To predict how many balls land somewhere, multiply the fraction by the number dropped. If a fraction $f$ of the binomial probability falls in a group of bins, then about $f N$ of $N$ released balls collect there. With 12 rows the three central bins hold $f \\approx 0.61$ — roughly 610 of 1000 balls — while the two outer bins together hold only $2\\,(1/2)^{12} \\approx 0.0005$, about one ball in two thousand.',
+            formula: 'E[\\text{balls in a region}] = N \\sum_{k\\,\\in\\,\\text{region}} \\binom{n}{k}\\left(\\tfrac{1}{2}\\right)^{\\!n}',
           },
         ],
       },
@@ -454,6 +474,11 @@ export const lessons: Lesson[] = [
           {
             heading: 'Fair games and the house edge',
             text: 'A wager is fair when its expected payout equals its cost. Lotteries and casinos deliberately price bets so that expected value falls short of the cost — that gap is the house edge, and it is why the house wins over the long run.',
+          },
+          {
+            heading: 'Designing a fair price',
+            text: 'Reading the definition backwards lets you set a fair price rather than just read one off. A wager is fair when its expected payout equals its cost, so to make a game that costs $c$ dollars fair you adjust the prizes and their chances until the weighted sum equals $c$. Raising the probability of a large prize pulls the expected payout up; trimming it — or charging a little more — bakes in the house edge.',
+            formula: '\\text{fair} \\iff \\sum_i x_i\\,p_i = \\text{price}',
           },
         ],
       },
@@ -587,6 +612,11 @@ export const lessons: Lesson[] = [
             text: 'Conditioning can be reversed. Writing the joint probability two ways and equating them yields Bayes’ theorem — the rule for updating a belief about $A$ after observing $B$. It is the formal engine behind learning from evidence.',
             formula: 'P(A \\mid B) = \\frac{P(B \\mid A)\\,P(A)}{P(B)}',
           },
+          {
+            heading: 'Conditioning can raise or lower the odds',
+            text: 'Evidence pushes a probability in whichever direction it points — conditioning does not always mean “less likely.” Peeking at the first card reshapes the ace odds three ways: remove an ace and the next-card chance drops to $3/51 \\approx 0.059$; remove a non-ace and it rises to $4/51 \\approx 0.078$; with no peek the chance is $4/52 \\approx 0.077$. Ranking such events is just comparing these updated fractions.',
+            formula: 'P(A_2 \\mid A_1) = \\tfrac{3}{51} \\;<\\; P(A_1) = \\tfrac{4}{52} \\;<\\; P(A_2 \\mid \\lnot A_1) = \\tfrac{4}{51}',
+          },
         ],
       },
       {
@@ -715,6 +745,11 @@ export const lessons: Lesson[] = [
             heading: 'Why intuition rebels',
             text: 'Seeing two closed doors at the end, people assume 50/50 and treat them as symmetric. They are not: the host’s knowledgeable reveal concentrates the leftover probability onto the switch door. With 100 doors the asymmetry becomes obvious — switching wins 99 times out of 100.',
           },
+          {
+            heading: 'Counting wins over many rounds',
+            text: 'Each strategy has a fixed win probability, so over many independent rounds the expected number of wins is that probability times the number of games. Switching through three doors wins about $2/3$ of the time — roughly 1000 of 1500 rounds — while staying wins about 500. To turn any win rate into a count, scale it by the number of rounds played.',
+            formula: 'E[\\text{wins}] = P(\\text{win}) \\times (\\text{number of rounds})',
+          },
         ],
       },
       {
@@ -840,6 +875,11 @@ export const lessons: Lesson[] = [
           {
             heading: 'Reading the die',
             text: 'A fair die has mean $\\mu = 3.5$ and standard deviation $\\sigma = \\sqrt{35/12} \\approx 1.71$. These two numbers, plus the sample size, are all you need to predict where the bell of averages sits and how wide it is.',
+          },
+          {
+            heading: 'Reading the bell: the empirical rule',
+            text: 'Because the sample mean is approximately normal, the center $\\mu$ and the standard error pin down the whole curve. About 68% of sample means land within one standard error of $\\mu$, about 95% within two, and about 99.7% within three. For averages of ten die rolls that is roughly $3.5 \\pm 0.54$ two-thirds of the time — exactly how wide to sketch the bell.',
+            formula: 'P(\\mu - \\mathrm{SE} \\le \\bar{X} \\le \\mu + \\mathrm{SE}) \\approx 0.68',
           },
         ],
       },
@@ -1055,7 +1095,7 @@ export const lessons: Lesson[] = [
   },
 ];
 
-export const FINAL_TEST_ID = 'lf-final-test';
+const FINAL_TEST_ID = 'lf-final-test';
 
 /**
  * The Final Test — a 10-question capstone exam spanning all eight lessons.
