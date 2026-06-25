@@ -13,6 +13,8 @@ import {
   getAuth,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  GoogleAuthProvider,
+  signInWithPopup,
   signOut as fbSignOut,
   updateProfile,
   onAuthStateChanged,
@@ -84,6 +86,17 @@ class FirebaseAuth implements AuthAdapter {
 
   async signIn(email: string, password: string): Promise<AuthUser> {
     const cred = await signInWithEmailAndPassword(this.auth, email, password);
+    return {
+      uid: cred.user.uid,
+      name: cred.user.displayName ?? '',
+      email: cred.user.email ?? '',
+    };
+  }
+
+  async signInWithGoogle(): Promise<AuthUser> {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    const cred = await signInWithPopup(this.auth, provider);
     return {
       uid: cred.user.uid,
       name: cred.user.displayName ?? '',

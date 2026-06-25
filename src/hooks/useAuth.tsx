@@ -9,6 +9,7 @@ interface AuthContextValue {
   backendKind: 'firebase' | 'local';
   signUp: (name: string, email: string, password: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -36,6 +37,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       signIn: async (email, password) => {
         await backend.auth.signIn(email, password);
+      },
+      signInWithGoogle: async () => {
+        await backend.auth.signInWithGoogle();
       },
       signOut: async () => {
         await backend.auth.signOut();

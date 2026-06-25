@@ -100,6 +100,26 @@ class LocalAuth implements AuthAdapter {
     return session;
   }
 
+  /**
+   * Local mode has no real OAuth, so sign into a deterministic demo Google
+   * account. The sentinel passwordHash is non-hex, so it can never match a
+   * real password — this account is reachable only via "Continue with Google".
+   */
+  async signInWithGoogle(): Promise<AuthUser> {
+    const key = 'demo.google@thelongrun.app';
+    const users = readUsers();
+    let user = users[key];
+    if (!user) {
+      user = { uid: `local-${hash(key)}`, name: 'Google User', email: key, passwordHash: 'google-oauth' };
+      users[key] = user;
+      writeUsers(users);
+    }
+    const session: AuthUser = { uid: user.uid, name: user.name, email: user.email };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    this.emit();
+    return session;
+  }
+
   async signOut(): Promise<void> {
     localStorage.removeItem(SESSION_KEY);
     this.emit();

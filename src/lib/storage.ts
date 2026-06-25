@@ -11,6 +11,12 @@ export interface AuthAdapter {
   onChange(cb: (user: AuthUser | null) => void): () => void;
   signUp(name: string, email: string, password: string): Promise<AuthUser>;
   signIn(email: string, password: string): Promise<AuthUser>;
+  /**
+   * OAuth sign-in with Google. In the Firebase backend this opens the real Google
+   * popup; in the localStorage fallback it signs into a deterministic demo Google
+   * account so the zero-config app (and e2e) stays fully usable offline.
+   */
+  signInWithGoogle(): Promise<AuthUser>;
   signOut(): Promise<void>;
 }
 
