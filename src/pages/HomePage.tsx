@@ -6,7 +6,7 @@ import {
   lessonState,
   dayKey,
 } from '../store/progress';
-import { dailyProblem, dailySim, dailySolvers, readPotdStatus } from '../content/daily';
+import { dailyProblem, dailySim } from '../content/daily';
 import { useProgress } from '../hooks/useProgress';
 import { useAuth } from '../hooks/useAuth';
 import { useUnlockAll } from '../hooks/useUnlockAll';
@@ -83,8 +83,6 @@ export default function HomePage() {
   const sim = dailySim(today);
   const problemPreview = daily ? clip(daily.step.body, 96) : null;
   const simPreview = clip(sim.blurb, 96);
-  const solvedToday = readPotdStatus(today) === 'solved';
-  const solvers = dailySolvers(today, new Date().getHours()) + (solvedToday ? 1 : 0);
 
   // One segment per lesson for the course-progress bar.
   const segments = lessons.map((l) => {
@@ -310,19 +308,6 @@ export default function HomePage() {
               </span>
             </span>
             {problemPreview && <span className="dw-preview">{problemPreview}</span>}
-            <span className="dw-foot">
-              <span className="dw-solvers">
-                <svg width="14" height="14" viewBox="0 0 24 24" {...ICO} aria-hidden>
-                  <circle cx="9" cy="8" r="3.2" />
-                  <path d="M3.5 19a5.5 5.5 0 0 1 11 0" />
-                  <path d="M16 5.3a3.2 3.2 0 0 1 0 5.4" />
-                  <path d="M17.5 13.6a5.5 5.5 0 0 1 3 4.9" />
-                </svg>
-                <span>
-                  <b>{solvers.toLocaleString()}</b> solved today
-                </span>
-              </span>
-            </span>
           </button>
 
           <button type="button" className="daily-widget" onClick={() => navigate('/simulation')}>

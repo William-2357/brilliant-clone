@@ -51,12 +51,6 @@ export const SANDBOX_SIMS: SandboxSim[] = [
     config: wheelConfig(EV_WHEEL),
   },
   {
-    type: 'birthday',
-    label: 'Birthday',
-    blurb: 'Fill a room and see how soon a shared birthday appears.',
-    config: { people: 23 },
-  },
-  {
     type: 'conditional',
     label: 'Conditional',
     blurb: 'Draw cards without replacement and watch the odds update.',

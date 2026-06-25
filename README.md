@@ -158,7 +158,7 @@ src/
     backend.ts              # auto-selects firebase vs local from env
     router.ts               # tiny hash router
   simulations/              # CoinFlip, DiceRoll, GaltonBoard, ExpectedValue, Conditional,
-                            #   MontyHall, RandomWalk, CLT (+ Birthday, Sandbox-only) — Canvas
+                            #   MontyHall, RandomWalk, CLT — Canvas
   components/               # AppLayout, LessonPlayer, FeedbackBanner, CompletionScreen,
                             #   LectureContent (KaTeX), OrderItems, DrawDistribution,
                             #   ProfileMenu (avatar → profile page), QuestionBar, etc.

@@ -2,7 +2,6 @@ export type SimulationType =
   | 'coinFlip'
   | 'diceRoll'
   | 'galtonBoard'
-  | 'birthday'
   | 'expectedValue'
   | 'conditional'
   | 'montyHall'

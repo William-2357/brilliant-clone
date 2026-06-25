@@ -65,14 +65,6 @@ export function isCorrect(guess: number, answer: number, tolerance: number): boo
   return Math.abs(guess - answer) <= tolerance + 1e-9;
 }
 
-/** Probability that at least two people in a room of n share a birthday. */
-export function birthdayProb(n: number): number {
-  if (n < 2) return 0;
-  let pNoMatch = 1;
-  for (let i = 0; i < n; i++) pNoMatch *= (365 - i) / 365;
-  return 1 - pNoMatch;
-}
-
 /** Expected value of one spin of a weighted wheel. */
 export interface WheelSegment {
   value: number;

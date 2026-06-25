@@ -74,15 +74,3 @@ export function writePotdStatus(today: string, status: PotdStatus): void {
     /* ignore */
   }
 }
-
-/**
- * A "people who solved today" count for the Problem of the Day. Phase 1 has no
- * global aggregation backend, so this is a deterministic, date-seeded figure that
- * climbs over the course of the day (stable within an hour, fresh each morning).
- * The caller adds 1 for this device once the learner solves it.
- */
-export function dailySolvers(today: string, hour: number): number {
-  const peak = 1200 + (hashString(`solvers:${today}`) % 3300); // day's-end total
-  const fraction = Math.min(1, (hour + 1) / 24); // grows as the day goes on
-  return Math.max(60, Math.round(peak * fraction));
-}

@@ -4,8 +4,8 @@ interface Props {
 }
 
 const W = 280;
-const H = 76;
-const PAD = 7;
+const H = 120;
+const PAD = 8;
 
 /**
  * Small "learning curve" sparkline: cumulative course mastery climbing toward
