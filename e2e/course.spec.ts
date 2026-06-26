@@ -5,27 +5,33 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe('Course catalog', () => {
-  test('lists all eight lessons', async ({ page }) => {
+  test('lists all eight units', async ({ page }) => {
     await page.goto('/#/learn');
-    await expect(page.locator('.page-title')).toHaveText('All lessons');
-    await expect(page.locator('.lesson-cards .lcard')).toHaveCount(8);
+    await expect(page.locator('.page-title')).toHaveText('Probability & Statistics');
+    await expect(page.locator('.unit-grid .unit-card')).toHaveCount(8);
   });
 
-  test('locks later lessons until free navigation is on', async ({ page }) => {
+  test('locks later units until free navigation is on', async ({ page }) => {
     await page.goto('/#/learn');
-    const cards = page.locator('.lesson-cards .lcard');
+    const units = page.locator('.unit-grid .unit-card');
 
-    // A brand-new learner can start lesson 1 but later lessons are gated.
-    await expect(cards.first()).toBeEnabled();
-    await expect(page.locator('.lesson-cards .lcard:disabled').first()).toBeVisible();
+    // A brand-new learner can start unit 1 but later units are gated.
+    await expect(units.first()).toBeEnabled();
+    await expect(page.locator('.unit-grid .unit-card:disabled').first()).toBeVisible();
 
-    // Toggling "Free navigation" unlocks every lesson.
+    // Toggling "Free navigation" unlocks every unit.
     await page.locator('.unlock-toggle').click();
-    await expect(page.locator('.lesson-cards .lcard:disabled')).toHaveCount(0);
+    await expect(page.locator('.unit-grid .unit-card:disabled')).toHaveCount(0);
   });
 
-  test('opens the first lesson from the catalog', async ({ page }) => {
+  test('drills into a unit and opens its first lesson', async ({ page }) => {
     await page.goto('/#/learn');
+
+    // First unit (Foundations) → its lesson list.
+    await page.locator('.unit-grid .unit-card').first().click();
+    await page.waitForURL(/#\/learn\/section\/s1-foundations/);
+
+    // First lesson in the unit → the lesson player.
     await page.locator('.lesson-cards .lcard').first().click();
     await page.waitForURL(/#\/learn\/l1-coin-flip/);
     await expect(page.locator('.player-step-title')).toBeVisible();
