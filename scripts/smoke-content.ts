@@ -17,8 +17,14 @@
 import { lessons, finalTest, gradableSteps } from '../src/content/lessons';
 import { generateProblem } from '../src/content/problemTemplates';
 import { readWheel, wheelEV } from '../src/content/simData';
-import { isCorrect, dieSD } from '../src/lib/probability';
-import { parseNumericInput } from '../src/lib/answer';
+import { dieSD, stddev, hypergeometricPmf } from '../src/lib/probability';
+import {
+  gradeNumericStr,
+  gradeOrderArr,
+  gradeDrawHeights,
+  gradeWheelProbs,
+  wheelReach,
+} from '../src/content/validate';
 import type { Lesson, LessonStep } from '../src/types/lesson';
 
 type Fail = { where: string; reason: string };
@@ -40,29 +46,8 @@ const isPermutation = (a: number[], b: number[]): boolean => {
   return sa.every((v, i) => v === sb[i]);
 };
 
-// ---- Grading replicas (must mirror the components exactly) ----
-function gradeNumericStr(step: LessonStep, s: string): boolean {
-  const v = parseNumericInput(s);
-  if (v === null) return false;
-  return isCorrect(v, step.answer ?? 0, step.tolerance ?? 0);
-}
-function gradeOrderArr(step: LessonStep, order: number[]): boolean {
-  const t = step.answerOrder ?? [];
-  return order.length === t.length && order.every((v, i) => v === t[i]);
-}
-function gradeDrawHeights(step: LessonStep, drawn: number[]): boolean {
-  const truth = step.answerShape ?? [];
-  const total = drawn.reduce((a, b) => a + b, 0);
-  if (total <= 0) return false;
-  const dist = drawn.map((h) => h / total);
-  const tv = 0.5 * dist.reduce((acc, d, i) => acc + Math.abs(d - (truth[i] ?? 0)), 0);
-  return tv <= (step.tolerance ?? 0.15);
-}
-function gradeWheelProbs(step: LessonStep, probs: number[]): boolean {
-  const payouts = step.wheelPayouts ?? [];
-  const ev = payouts.reduce((s, v, i) => s + v * (probs[i] ?? 0), 0);
-  return isCorrect(ev, step.answer ?? 0, step.tolerance ?? 0);
-}
+// Grading + wheel-reachability come from src/content/validate.ts (the single
+// source these replicate); see the imports above.
 
 // ---- Sim ↔ answer consistency (does the sim converge to the graded value?) ----
 const DICE_VALS = [1, 2, 3, 4, 5, 6].map((w) => w / 36);
@@ -77,15 +62,25 @@ function simConsistency(step: LessonStep, where: string): void {
     else check(approx(ans, cfg.p, 1e-9), where, `coin fraction ${ans} != sim p ${cfg.p}`);
   } else if (sim === 'diceRoll') {
     if (unit === 'count') {
-      const d = ans / cfg.rolls;
-      check(DICE_VALS.some((v) => Math.abs(v - d) < 1e-6), where, `dice count ratio ${d} not a dice prob`);
+      check(
+        DICE_VALS.some((v) => ans === Math.round(v * cfg.rolls)),
+        where,
+        `dice count ${ans} is not a rounded dice prob × ${cfg.rolls}`,
+      );
+    } else if (unit === 'sum') {
+      check(ans >= 2 && ans <= 12, where, `dice sum ${ans} out of range 2..12`);
     } else check(DICE_VALS.some((v) => Math.abs(v - ans) < 1e-9), where, `dice prob ${ans} not in distribution`);
   } else if (sim === 'galtonBoard') {
     const f = unit === 'count' ? ans / cfg.balls : ans;
     check(f > 0 && f <= 1, where, `galton fraction ${f} out of (0,1]`);
   } else if (sim === 'expectedValue') {
-    const ev = wheelEV(readWheel(cfg));
-    check(approx(ans, ev, 1e-6), where, `EV answer ${ans} != wheel(config) EV ${ev}`);
+    const segs = readWheel(cfg);
+    if (cfg.spread) {
+      check(approx(ans, stddev(segs), 1e-6), where, `SD answer ${ans} != wheel SD ${stddev(segs)}`);
+    } else {
+      const ev = wheelEV(segs);
+      check(approx(ans, ev, 1e-6), where, `EV answer ${ans} != wheel(config) EV ${ev}`);
+    }
   } else if (sim === 'montyHall') {
     const base = (cfg.strategy ?? 1) === 1 ? (cfg.doors - 1) / cfg.doors : 1 / cfg.doors;
     if (unit === 'count') check(ans === Math.round(base * cfg.trials), where, `monty count ${ans} != round(${base}*${cfg.trials})`);
@@ -99,6 +94,21 @@ function simConsistency(step: LessonStep, where: string): void {
   } else if (sim === 'conditional') {
     const map: Record<number, number> = { 0: 4 / 52, 1: (4 * 3) / (52 * 51), 2: 3 / 51, 3: 12 / 52, 4: 4 / 51 };
     check(approx(ans, map[cfg.metric], 1e-9), where, `conditional ${ans} != metric ${cfg.metric} value ${map[cfg.metric]}`);
+  } else if (sim === 'hypergeometric') {
+    const N = Math.round(cfg.N ?? 0);
+    const K = Math.round(cfg.K ?? 0);
+    const nDraw = Math.round(cfg.n ?? 0);
+    if ((cfg.readout ?? 0) === 1) {
+      const k = Math.round(cfg.targetK ?? 0);
+      check(approx(ans, hypergeometricPmf(N, K, nDraw, k), 1e-9), where, `hypergeometric P(X=${k}) ${ans} != pmf ${hypergeometricPmf(N, K, nDraw, k)}`);
+    } else {
+      check(N > 0 && approx(ans, (nDraw * K) / N, 1e-9), where, `hypergeometric mean ${ans} != n*K/N ${(nDraw * K) / N}`);
+    }
+  } else if (sim === 'uniformLine') {
+    const lo = cfg.lo ?? 0;
+    const hi = cfg.hi ?? 0.5;
+    const len = Math.round(cfg.mode ?? 0) === 1 ? lo + (1 - hi) : Math.max(0, hi - lo);
+    check(approx(ans, len, 1e-9), where, `uniformLine ${ans} != band length ${len}`);
   }
 }
 
@@ -119,29 +129,6 @@ function orderDeepCheck(step: LessonStep, where: string): void {
     // EVs of the four static games (only checkable for the static fallback).
     // For generated variants we still validate permutation + grader elsewhere.
   }
-}
-
-// ---- Wheel reachability (mirror WheelSegments: MIN_SEG=0.05, probs sum to 1) ----
-const MIN_SEG = 0.05;
-function wheelReach(payouts: number[], target: number): { minEV: number; maxEV: number; probs: number[] | null } {
-  const n = payouts.length;
-  const minPay = Math.min(...payouts);
-  const maxPay = Math.max(...payouts);
-  const iLo = payouts.indexOf(minPay);
-  const iHi = payouts.indexOf(maxPay);
-  const baseEV = payouts.reduce((s, v) => s + MIN_SEG * v, 0);
-  const L = 1 - n * MIN_SEG;
-  const minEV = baseEV + L * minPay;
-  const maxEV = baseEV + L * maxPay;
-  let probs: number[] | null = null;
-  if (iHi !== iLo && maxPay > minPay) {
-    const x = (target - baseEV - L * minPay) / (maxPay - minPay); // mass (of L) to the max segment
-    const xc = Math.max(0, Math.min(L, x));
-    probs = new Array(n).fill(MIN_SEG);
-    probs[iHi] += xc;
-    probs[iLo] += L - xc;
-  }
-  return { minEV, maxEV, probs };
 }
 
 function validate(step: LessonStep, where: string): void {

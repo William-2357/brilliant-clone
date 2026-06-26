@@ -7,8 +7,10 @@ import AppLayout from './components/AppLayout';
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
 import CoursePage from './pages/CoursePage';
+import UnitPage from './pages/UnitPage';
 import LessonPage from './pages/LessonPage';
 import SandboxPage from './pages/SandboxPage';
+import ArcadePage from './pages/ArcadePage';
 import ProfilePage from './pages/ProfilePage';
 import TestPage from './pages/TestPage';
 import ProblemPage from './pages/ProblemPage';
@@ -32,6 +34,17 @@ function Routes() {
       <AuthGuard>
         <AppLayout activeLessonId={null}>
           <HomePage />
+        </AppLayout>
+      </AuthGuard>
+    );
+  }
+
+  const sectionMatch = matchRoute('/learn/section/:sectionId', path);
+  if (sectionMatch) {
+    return (
+      <AuthGuard>
+        <AppLayout activeLessonId={null}>
+          <UnitPage sectionId={sectionMatch.sectionId} />
         </AppLayout>
       </AuthGuard>
     );
@@ -63,6 +76,16 @@ function Routes() {
       <AuthGuard>
         <AppLayout activeLessonId={null}>
           <SandboxPage />
+        </AppLayout>
+      </AuthGuard>
+    );
+  }
+
+  if (path === '/arcade') {
+    return (
+      <AuthGuard>
+        <AppLayout activeLessonId={null}>
+          <ArcadePage />
         </AppLayout>
       </AuthGuard>
     );

@@ -1,4 +1,4 @@
-import type { Lesson } from '../types/lesson';
+import type { Lesson, CourseSection } from '../types/lesson';
 import {
   longRunFrequency,
   mostLikelyDiceSumProbability,
@@ -19,6 +19,15 @@ import {
   drawMatchesNoReplacement,
 } from '../lib/probability';
 import { wheelConfig, wheelEV } from './simData';
+import { sectionDefs, type SectionDef } from './sections';
+import { foundationsLessons } from './foundations';
+import { combinatoricsLessons } from './combinatorics';
+import { conditionalLessons } from './conditional';
+import { rvLessons } from './rv';
+import { distributionsLessons } from './distributions';
+import { limitLessons } from './limit';
+import { stochasticLessons } from './stochastic';
+import { geometricLessons } from './geometric';
 
 const dice = diceSumDistribution();
 const cltMean10 = diceSampleMeanDistribution(10);
@@ -49,7 +58,7 @@ const mixWheel = [
  * `coming-soon` so the full intended depth is visible without claiming it works.
  * Every numeric `answer` is computed by the owned probability functions above.
  */
-export const lessons: Lesson[] = [
+const lessonList: Lesson[] = [
   {
     id: 'l1-coin-flip',
     index: 1,
@@ -1095,6 +1104,69 @@ export const lessons: Lesson[] = [
   },
 ];
 
+/**
+ * Assemble the course from the canonical `sectionDefs` ordering: resolve each
+ * section's lesson ids to the authored `lessonList` objects, then derive the flat
+ * `lessons` array with a global display `index`, a `sectionId`, and a default
+ * `prerequisiteId` chained across the whole course (so prerequisites never need
+ * hand-maintaining as the course grows). Empty sections contribute no lessons.
+ */
+function buildCourse(defs: SectionDef[], list: Lesson[]): {
+  sections: CourseSection[];
+  lessons: Lesson[];
+} {
+  const byId = new Map(list.map((l) => [l.id, l] as const));
+  const built: CourseSection[] = [];
+  const flat: Lesson[] = [];
+  let globalIndex = 0;
+  let prevId: string | null = null;
+  for (const def of defs) {
+    const secLessons: Lesson[] = [];
+    for (const id of def.lessonIds) {
+      const base = byId.get(id);
+      if (!base) continue;
+      globalIndex += 1;
+      const lesson: Lesson = { ...base, index: globalIndex, sectionId: def.id, prerequisiteId: prevId };
+      secLessons.push(lesson);
+      flat.push(lesson);
+      prevId = lesson.id;
+    }
+    built.push({
+      id: def.id,
+      index: def.index,
+      title: def.title,
+      blurb: def.blurb,
+      accent: def.accent,
+      checkpointId: def.checkpointId,
+      lessons: secLessons,
+    });
+  }
+  return { sections: built, lessons: flat };
+}
+
+const course = buildCourse(sectionDefs, [
+  ...lessonList,
+  ...foundationsLessons,
+  ...combinatoricsLessons,
+  ...conditionalLessons,
+  ...rvLessons,
+  ...distributionsLessons,
+  ...limitLessons,
+  ...stochasticLessons,
+  ...geometricLessons,
+]);
+
+/** The course sections in curriculum order — the canonical grouping for the UI. */
+export const sections: CourseSection[] = course.sections;
+
+/** Flat, ordered list of every lesson, derived from `sections`. */
+export const lessons: Lesson[] = course.lessons;
+
+/** Find the section a lesson belongs to (by lesson id). */
+export function getSectionForLesson(lessonId: string): CourseSection | undefined {
+  return sections.find((s) => s.lessons.some((l) => l.id === lessonId));
+}
+
 const FINAL_TEST_ID = 'lf-final-test';
 
 /**
@@ -1280,7 +1352,7 @@ export const finalTest: Lesson = {
 };
 
 export function getLesson(id: string): Lesson | undefined {
-  return lessons.find((l) => l.id === id);
+  return lessons.find((l) => l.id === id) ?? (id === finalTest.id ? finalTest : undefined);
 }
 
 export function gradableSteps(lesson: Lesson) {

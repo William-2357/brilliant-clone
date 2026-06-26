@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SimulationProps } from './types';
 import { setupCanvas, simPalette } from './canvasUtils';
-import { readWheel, segmentColor, wheelEV } from '../content/simData';
+import { readWheel, segmentColor } from '../content/simData';
 import { getSimSpeed, scaledStep } from '../lib/simSpeed';
 import RangeField from '../components/RangeField';
 
@@ -14,13 +14,13 @@ import RangeField from '../components/RangeField';
 export default function ExpectedValue({ config, mode, runSignal, onSettled }: SimulationProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wheel = useMemo(() => readWheel(config), [config]);
-  const EV = useMemo(() => wheelEV(wheel), [wheel]);
   const scaleMax = useMemo(() => Math.max(...wheel.map((s) => s.value)) * 1.1 || 11, [wheel]);
+  const spread = (config.spread ?? 0) > 0;
   const [spins, setSpins] = useState(200);
   const rafRef = useRef<number>(0);
   const accRef = useRef(0);
   const lastRunRef = useRef(runSignal);
-  const stateRef = useRef({ sum: 0, processed: 0, total: 0, angle: 0, lastValue: 0 });
+  const stateRef = useRef({ sum: 0, sumSq: 0, processed: 0, total: 0, angle: 0, lastValue: 0 });
 
   function sampleSegment(): number {
     const r = Math.random();
@@ -101,37 +101,53 @@ export default function ExpectedValue({ config, mode, runSignal, onSettled }: Si
       ctx.fill();
     }
 
-    // EV target line (hidden during predict phase)
-    const showTarget = mode === 'explore' || s.processed > 0;
-    if (showTarget) {
-      const tx = barX + (barW * EV) / scaleMax;
-      ctx.strokeStyle = c.accent2;
-      ctx.setLineDash([4, 4]);
-      ctx.lineWidth = 1.5;
+    // Spread band (variance lessons): ±1 SD bracket around the running average,
+    // revealed once a run starts. There is no EV target line — for a plain EV
+    // problem only the running average remains; in spread mode the standard
+    // deviation is what the learner predicts, so it becomes the headline.
+    const sd = s.processed > 0 ? Math.sqrt(Math.max(0, s.sumSq / s.processed - avg * avg)) : 0;
+    if (spread && s.processed > 0) {
+      const loX = barX + (barW * Math.max(0, avg - sd)) / scaleMax;
+      const hiX = barX + (barW * Math.min(scaleMax, avg + sd)) / scaleMax;
+      ctx.strokeStyle = c.accentStrong;
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(tx, barY - 8);
-      ctx.lineTo(tx, barY + barH + 8);
+      ctx.moveTo(loX, barY - 6);
+      ctx.lineTo(hiX, barY - 6);
+      ctx.moveTo(loX, barY - 9);
+      ctx.lineTo(loX, barY - 3);
+      ctx.moveTo(hiX, barY - 9);
+      ctx.lineTo(hiX, barY - 3);
       ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = c.accent2;
-      ctx.font = '11px system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(`EV ${EV.toFixed(2)}`, tx, barY - 12);
     }
 
-    ctx.fillStyle = c.textH;
-    ctx.font = '700 26px system-ui, sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText(`$${avg.toFixed(3)}`, panelX, baseY - 18);
-    ctx.fillStyle = c.text;
-    ctx.font = '12px system-ui, sans-serif';
-    ctx.fillText(`avg over ${s.processed} spins`, panelX, baseY - 38);
+    if (spread) {
+      ctx.fillStyle = c.textH;
+      ctx.font = '700 26px system-ui, sans-serif';
+      ctx.fillText(s.processed > 0 ? `σ ≈ ${sd.toFixed(2)}` : 'σ ≈ —', panelX, baseY - 18);
+      ctx.fillStyle = c.text;
+      ctx.font = '12px system-ui, sans-serif';
+      ctx.fillText(
+        s.processed > 0 ? `spread · mean ≈ ${avg.toFixed(2)} over ${s.processed} spins` : 'standard deviation (spread)',
+        panelX,
+        baseY - 38,
+      );
+    } else {
+      ctx.fillStyle = c.textH;
+      ctx.font = '700 26px system-ui, sans-serif';
+      ctx.fillText(`$${avg.toFixed(3)}`, panelX, baseY - 18);
+      ctx.fillStyle = c.text;
+      ctx.font = '12px system-ui, sans-serif';
+      ctx.fillText(`avg over ${s.processed} spins`, panelX, baseY - 38);
+    }
   }
 
   function run(total: number) {
     cancelAnimationFrame(rafRef.current);
     const s = stateRef.current;
     s.sum = 0;
+    s.sumSq = 0;
     s.processed = 0;
     s.total = total;
     accRef.current = 0;
@@ -142,6 +158,7 @@ export default function ExpectedValue({ config, mode, runSignal, onSettled }: Si
       for (let i = 0; i < todo && s.processed < total; i++) {
         const seg = wheel[sampleSegment()];
         s.sum += seg.value;
+        s.sumSq += seg.value * seg.value;
         s.processed++;
       }
       // Spin the wheel at a steady, readable pace (scaled by the global speed)

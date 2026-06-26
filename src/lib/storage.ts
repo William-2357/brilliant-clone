@@ -22,6 +22,41 @@ export interface AuthAdapter {
 
 export type ProgressMap = Record<string, LessonProgress>;
 
+/** Starting play-chip balance for the Arcade. Chips are for learning, not money. */
+export const ARCADE_STARTING_BANKROLL = 1000;
+
+/**
+ * Arcade (Apply) progress — play-chip bankroll and lifetime decision quality for
+ * the Blackjack trainer. Persisted on `UserStats` so it rides the existing
+ * Backend/progress abstraction (localStorage fallback) rather than a bespoke store.
+ * Chips are play-only: no real money, no purchases.
+ */
+export interface ArcadeStats {
+  /** Current play-chip balance (resettable). */
+  bankroll: number;
+  /** Lifetime net play-chips won/lost. */
+  netChips: number;
+  /** Hands played to completion. */
+  handsPlayed: number;
+  /** Total graded decisions (hit/stand/double choices). */
+  decisionsTotal: number;
+  /** Decisions that matched the engine's EV-optimal play. */
+  decisionsCorrect: number;
+  /** High-water bankroll mark. */
+  bestBankroll: number;
+}
+
+export function emptyArcade(): ArcadeStats {
+  return {
+    bankroll: ARCADE_STARTING_BANKROLL,
+    netChips: 0,
+    handsPlayed: 0,
+    decisionsTotal: 0,
+    decisionsCorrect: 0,
+    bestBankroll: ARCADE_STARTING_BANKROLL,
+  };
+}
+
 /** Per-user habit stats (streaks) — stored once per user, not per lesson. */
 export interface UserStats {
   /** Consecutive calendar days with at least one active session. */
@@ -34,6 +69,8 @@ export interface UserStats {
   totalDaysActive: number;
   /** Problems resolved per local calendar day (YYYY-MM-DD → count) — powers the activity heatmap. */
   dailyActivity: Record<string, number>;
+  /** Arcade (Apply) bankroll + decision quality. */
+  arcade: ArcadeStats;
 }
 
 export function emptyStats(): UserStats {
@@ -43,6 +80,7 @@ export function emptyStats(): UserStats {
     lastActiveDay: null,
     totalDaysActive: 0,
     dailyActivity: {},
+    arcade: emptyArcade(),
   };
 }
 

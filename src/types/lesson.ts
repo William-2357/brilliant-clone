@@ -6,7 +6,29 @@ export type SimulationType =
   | 'conditional'
   | 'montyHall'
   | 'randomWalk'
-  | 'clt';
+  | 'clt'
+  | 'venn'
+  | 'countingTree'
+  | 'arrangements'
+  | 'pascal'
+  | 'starsBars'
+  | 'matching'
+  | 'urnTree'
+  | 'bayesGrid'
+  | 'expectedSteps'
+  | 'scatter'
+  | 'waitingTime'
+  | 'poisson'
+  | 'tailBound'
+  | 'markov'
+  | 'branching'
+  | 'dartThrow'
+  | 'buffon'
+  | 'orderStats'
+  | 'randomChord'
+  | 'hypergeometric'
+  | 'uniformLine'
+  | 'blackjackEdge';
 
 type StepType = 'concept' | 'problem';
 
@@ -18,7 +40,7 @@ type StepType = 'concept' | 'problem';
  *   draw    — sketch a distribution's bar heights before the truth is revealed
  *   wheel   — drag prize-wheel segment probabilities to hit a target expected value
  */
-type InteractionType = 'numeric' | 'slider' | 'order' | 'draw' | 'wheel';
+export type InteractionType = 'numeric' | 'slider' | 'order' | 'draw' | 'wheel';
 
 interface StepFeedback {
   correct: string;
@@ -90,6 +112,24 @@ export interface Lesson {
   status: LessonStatus;
   prerequisiteId: string | null;
   steps: LessonStep[];
+  /** Which course section this lesson belongs to (assigned when the course is assembled). */
+  sectionId?: string;
+}
+
+/**
+ * A course section ("unit"). The canonical grouping + ordering the Course Home,
+ * Unit pages, and section-grouped sidebar render from. `accent` is a chrome-only
+ * color (never fed to the Canvas sims). `checkpointId`, when set, is the lesson
+ * id of this unit's checkpoint quiz that gates the next unit.
+ */
+export interface CourseSection {
+  id: string;
+  index: number;
+  title: string;
+  blurb: string;
+  accent: string;
+  lessons: Lesson[];
+  checkpointId?: string;
 }
 
 export type LessonState = 'locked' | 'available' | 'in-progress' | 'cleared' | 'mastered';

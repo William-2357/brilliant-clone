@@ -1,7 +1,8 @@
-import { lessons, finalTest, gradableSteps } from '../content/lessons';
+import type { CSSProperties } from 'react';
+import { sections, lessons, finalTest, gradableSteps } from '../content/lessons';
 import {
-  lessonState,
-  lessonProgressFraction,
+  sectionState,
+  sectionProgressFraction,
   recommendNext,
   courseStats,
   masteryCurve,
@@ -15,16 +16,13 @@ import { navigate } from '../lib/router';
 import LessonIcon, { LockIcon } from '../components/LessonIcon';
 import ProgressRing from '../components/ProgressRing';
 import MasteryCurve from '../components/MasteryCurve';
-import QuestionBar from '../components/QuestionBar';
 import ActivityHeatmap from '../components/ActivityHeatmap';
-import type { LessonState } from '../types/lesson';
 
-const STATE_LABEL: Record<LessonState, string> = {
+const SECTION_STATE_LABEL: Record<string, string> = {
   locked: 'Locked',
   available: 'Start',
-  'in-progress': 'Continue',
-  cleared: 'Cleared',
-  mastered: 'Mastered',
+  'in-progress': 'In progress',
+  complete: 'Complete',
 };
 
 export default function CoursePage() {
@@ -55,10 +53,10 @@ export default function CoursePage() {
     <div className="page course">
       <header className="page-head">
         <p className="page-eyebrow">Course</p>
-        <h1 className="page-title">All lessons</h1>
+        <h1 className="page-title">Probability &amp; Statistics</h1>
         <p className="page-sub">
-          Every lesson in Probability &amp; Statistics — predict, simulate, verify, one short
-          hands-on session at a time.
+          Eight units, each a short stack of predict-then-verify lessons. Finish a unit to unlock
+          the next.
         </p>
       </header>
 
@@ -87,46 +85,49 @@ export default function CoursePage() {
             <span className="unlock-track" aria-hidden="true" />
             <span className="unlock-text">
               Free navigation
-              <span className="unlock-sub">Jump to any lesson without finishing earlier ones</span>
+              <span className="unlock-sub">Jump to any unit without finishing earlier ones</span>
             </span>
           </label>
 
-          <ol className="lesson-cards">
-            {lessons.map((lesson) => {
-              const state = lessonState(lesson, progress.all, unlockAll);
-              const clickable = state !== 'locked';
-              const frac = state === 'mastered' ? 1 : lessonProgressFraction(lesson, progress.all);
-              const ringColor =
-                state === 'mastered'
-                  ? 'var(--good)'
-                  : state === 'cleared'
-                    ? 'var(--accent-2)'
-                    : 'var(--accent)';
+          <ol className="unit-grid">
+            {sections.map((section) => {
+              const sState = sectionState(section, progress.all, unlockAll);
+              const built = section.lessons.filter((l) => l.status === 'built');
+              const empty = built.length === 0;
+              const frac = sectionProgressFraction(section, progress.all);
+              const clearedCount = Math.round(frac * built.length);
+              const clickable = !empty && sState !== 'locked';
               return (
-                <li key={lesson.id}>
+                <li key={section.id}>
                   <button
                     type="button"
-                    className={`lcard state-${state}`}
+                    className={`unit-card sstate-${sState} ${empty ? 'unit-empty' : ''}`}
+                    style={{ '--section-accent': section.accent } as CSSProperties}
                     disabled={!clickable}
-                    onClick={() => clickable && navigate(`/learn/${lesson.id}`)}
+                    onClick={() => clickable && navigate(`/learn/section/${section.id}`)}
                   >
-                    <span className="lcard-index">{lesson.index}</span>
-                    <LessonIcon lessonId={lesson.id} size={26} tile className="lcard-icon" />
-                    <span className="lcard-body">
-                      <span className="lcard-title">{lesson.title}</span>
-                      <span className="lcard-desc">{lesson.concept}</span>
-                      {clickable && (
-                        <QuestionBar lesson={lesson} progress={progress.all[lesson.id]} />
-                      )}
+                    <span className="unit-card-index">{section.index}</span>
+                    <span className="unit-card-body">
+                      <span className="unit-card-title">{section.title}</span>
+                      <span className="unit-card-desc">{section.blurb}</span>
+                      <span className="unit-card-meta">
+                        {empty
+                          ? 'Coming soon'
+                          : `${clearedCount}/${built.length} lessons cleared`}
+                      </span>
                     </span>
-                    {clickable ? (
-                      <ProgressRing value={frac} size={34} stroke={3.5} color={ringColor} />
-                    ) : (
+                    {empty ? (
+                      <span className="status-pill pill-locked">Soon</span>
+                    ) : sState === 'locked' ? (
                       <LockIcon size={16} className="lcard-lock" />
+                    ) : (
+                      <ProgressRing value={frac} size={36} stroke={3.5} color="var(--section-accent)" />
                     )}
-                    <span className={`status-pill pill-${state}`}>
-                      {lesson.status === 'coming-soon' ? 'Coming soon' : STATE_LABEL[state]}
-                    </span>
+                    {!empty && (
+                      <span className={`status-pill pill-${sState === 'complete' ? 'mastered' : sState}`}>
+                        {SECTION_STATE_LABEL[sState]}
+                      </span>
+                    )}
                   </button>
                 </li>
               );
@@ -147,10 +148,10 @@ export default function CoursePage() {
               <span className="resume-title">{finalTest.title}</span>
               <span className="resume-sub">
                 {!testUnlocked
-                  ? 'Clear all eight lessons to unlock'
+                  ? 'Clear every unit to unlock'
                   : testScore != null
                     ? `Last score ${testScore}/${testTotal} · retake anytime`
-                    : `${testTotal} questions spanning every lesson`}
+                    : `${testTotal} questions spanning every unit`}
               </span>
             </span>
             <span className="resume-go" aria-hidden>

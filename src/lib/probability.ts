@@ -224,3 +224,428 @@ export function randomWalkEndDistribution(
   for (let k = 0; k <= n; k++) pairs.push([2 * k - n, binomialPmf(n, k, p)]);
   return binDistribution(pairs, drift - 3 * sd - 1, drift + 3 * sd + 1, bins, 0);
 }
+
+// ---------------------------------------------------------------------------
+// Section 1 — Foundations & sample space
+// ---------------------------------------------------------------------------
+
+/** The four disjoint regions of a two-event Venn diagram, as outcome counts. */
+export interface VennCounts {
+  aOnly: number;
+  bOnly: number;
+  both: number;
+  neither: number;
+}
+
+export type VennRegion = 'a' | 'b' | 'and' | 'or' | 'aOnly' | 'bOnly' | 'notA' | 'neither';
+
+/** Canonical region order, shared by the Venn sim's numeric `region` config. */
+export const VENN_REGION_ORDER: VennRegion[] = [
+  'a',
+  'b',
+  'and',
+  'or',
+  'aOnly',
+  'bOnly',
+  'notA',
+  'neither',
+];
+
+function vennTotal(v: VennCounts): number {
+  return v.aOnly + v.bOnly + v.both + v.neither;
+}
+
+/** Number of equally-likely outcomes in a Venn region. */
+function vennRegionCount(v: VennCounts, region: VennRegion): number {
+  switch (region) {
+    case 'a':
+      return v.aOnly + v.both;
+    case 'b':
+      return v.bOnly + v.both;
+    case 'and':
+      return v.both;
+    case 'or':
+      return v.aOnly + v.bOnly + v.both;
+    case 'aOnly':
+      return v.aOnly;
+    case 'bOnly':
+      return v.bOnly;
+    case 'notA':
+      return v.bOnly + v.neither;
+    case 'neither':
+      return v.neither;
+  }
+}
+
+/** Probability of a Venn region under equally-likely outcomes (count / total). */
+export function vennProb(v: VennCounts, region: VennRegion): number {
+  const total = vennTotal(v);
+  return total === 0 ? 0 : vennRegionCount(v, region) / total;
+}
+
+/** Addition rule: P(A ∪ B) = P(A) + P(B) − P(A ∩ B). */
+export function additionRule(pA: number, pB: number, pAnd: number): number {
+  return pA + pB - pAnd;
+}
+
+/**
+ * Three-set inclusion–exclusion for |A ∪ B ∪ C| (works for counts or probabilities):
+ * a + b + c − ab − ac − bc + abc.
+ */
+export function inclusionExclusion3(
+  a: number,
+  b: number,
+  c: number,
+  ab: number,
+  ac: number,
+  bc: number,
+  abc: number,
+): number {
+  return a + b + c - ab - ac - bc + abc;
+}
+
+// ---------------------------------------------------------------------------
+// Section 2 — Combinatorics (counting)
+// ---------------------------------------------------------------------------
+
+/** Product of a list of choice-counts — the multiplication principle. */
+export function countProduct(choices: number[]): number {
+  return choices.reduce((a, b) => a * b, 1);
+}
+
+/** n! (exact for the small n used in lessons). */
+function factorial(n: number): number {
+  let r = 1;
+  for (let i = 2; i <= n; i++) r *= i;
+  return r;
+}
+
+/** Ordered arrangements: nPr = n! / (n − r)!. */
+export function permutations(n: number, r: number): number {
+  if (r < 0 || r > n) return 0;
+  let result = 1;
+  for (let i = 0; i < r; i++) result *= n - i;
+  return result;
+}
+
+/** Unordered selections: n choose k. */
+export function combinations(n: number, k: number): number {
+  return choose(n, k);
+}
+
+/** Distinct arrangements of a multiset: (Σ counts)! / Π (countᵢ!). */
+export function multinomialArrangements(counts: number[]): number {
+  const total = counts.reduce((a, b) => a + b, 0);
+  let r = factorial(total);
+  for (const c of counts) r /= factorial(c);
+  return r;
+}
+
+/**
+ * Stars and bars: number of nonnegative integer solutions to x₁+…+x_k = n,
+ * i.e. ways to drop n identical items into k distinct boxes = C(n+k−1, k−1).
+ */
+export function starsAndBars(n: number, k: number): number {
+  return combinations(n + k - 1, k - 1);
+}
+
+/**
+ * Probability that a random permutation of n items has NO fixed point (a
+ * derangement): Σ_{i=0}^{n} (−1)^i / i!, which tends to 1/e.
+ */
+export function derangementProbability(n: number): number {
+  let sum = 0;
+  for (let i = 0; i <= n; i++) sum += (i % 2 === 0 ? 1 : -1) / factorial(i);
+  return sum;
+}
+
+/**
+ * Expected number of fixed points when n items are returned at random. Each item
+ * is matched with probability 1/n, and by linearity the expected count is exactly
+ * 1 for every n ≥ 1.
+ */
+export function expectedFixedPoints(n: number): number {
+  return n >= 1 ? 1 : 0;
+}
+
+// ---------------------------------------------------------------------------
+// Section 3 — Conditional probability & independence
+// ---------------------------------------------------------------------------
+
+/** A branch of a partition: its probability `weight` and the conditional `p` of the event. */
+export interface Branch {
+  weight: number;
+  p: number;
+}
+
+/**
+ * Law of total probability: P(E) = Σ P(branch) · P(E | branch). Weights are
+ * normalized in case they are given as raw counts.
+ */
+export function totalProbability(branches: Branch[]): number {
+  const w = branches.reduce((a, b) => a + b.weight, 0) || 1;
+  return branches.reduce((acc, b) => acc + (b.weight / w) * b.p, 0);
+}
+
+/**
+ * Bayes' theorem for a binary test: posterior probability of the condition given
+ * a positive result, from the prior (base rate), sensitivity P(+|D) and
+ * specificity P(−|¬D).
+ */
+export function bayesPosterior(prior: number, sensitivity: number, specificity: number): number {
+  const tp = prior * sensitivity;
+  const fp = (1 - prior) * (1 - specificity);
+  return tp + fp === 0 ? 0 : tp / (tp + fp);
+}
+
+// ---------------------------------------------------------------------------
+// Section 4 — Random variables & expectation
+// ---------------------------------------------------------------------------
+
+/** Variance of a discrete distribution given as (value, probability) pairs: E[X²] − E[X]². */
+export function variance(segments: WheelSegment[]): number {
+  const mean = segments.reduce((s, x) => s + x.value * x.p, 0);
+  const ex2 = segments.reduce((s, x) => s + x.value * x.value * x.p, 0);
+  return ex2 - mean * mean;
+}
+
+/** Standard deviation of a discrete distribution. */
+export function stddev(segments: WheelSegment[]): number {
+  return Math.sqrt(variance(segments));
+}
+
+/** Expected number of trials to the first success of a probability-p event: 1/p. */
+export function expectedTrialsGeometric(p: number): number {
+  return p > 0 ? 1 / p : Infinity;
+}
+
+/** Expected rolls of a fair `faces`-sided die until a specific face appears: `faces`. */
+export function expectedRollsUntilFace(faces: number): number {
+  return faces;
+}
+
+/**
+ * Expected rolls of a fair `faces`-sided die until `run` copies of a specific face
+ * appear in a row: faces + faces² + … + faces^run (first-step recursion).
+ */
+export function expectedConsecutive(faces: number, run: number): number {
+  let sum = 0;
+  for (let i = 1; i <= run; i++) sum += Math.pow(faces, i);
+  return sum;
+}
+
+/**
+ * Expected value of a sum of indicator variables = the sum of their event
+ * probabilities (linearity of expectation, true even when they are dependent).
+ */
+export function expectedIndicatorSum(probs: number[]): number {
+  return probs.reduce((a, b) => a + b, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Section 5 — Named distributions
+// ---------------------------------------------------------------------------
+
+/** Geometric PMF: probability the first success is on trial k (k ≥ 1). */
+export function geometricPmf(k: number, p: number): number {
+  return k < 1 ? 0 : Math.pow(1 - p, k - 1) * p;
+}
+
+/** Geometric mean: expected trials to the first success = 1/p. */
+export function geometricMean(p: number): number {
+  return p > 0 ? 1 / p : Infinity;
+}
+
+/** Geometric tail: probability the first success takes more than k trials = (1−p)^k. */
+export function geometricTail(k: number, p: number): number {
+  return Math.pow(1 - p, k);
+}
+
+/** Poisson PMF: probability of exactly k events when the mean rate is λ. */
+export function poissonPmf(k: number, lambda: number): number {
+  if (k < 0) return 0;
+  return (Math.exp(-lambda) * Math.pow(lambda, k)) / factorial(k);
+}
+
+/** Poisson mean: the expected number of events per interval equals the rate λ. */
+export function poissonMean(lambda: number): number {
+  return lambda;
+}
+
+/**
+ * Hypergeometric PMF: probability of exactly k successes when drawing n items
+ * without replacement from a population of N with K successes.
+ */
+export function hypergeometricPmf(N: number, K: number, n: number, k: number): number {
+  return (combinations(K, k) * combinations(N - K, n - k)) / combinations(N, n);
+}
+
+/** Fraction of a whole occupied by a part — a length/area/measure ratio. */
+export function measureRatio(part: number, whole: number): number {
+  return whole === 0 ? 0 : part / whole;
+}
+
+/** Mean of a continuous uniform on [a, b]: the midpoint (a + b) / 2. */
+export function uniformMean(a: number, b: number): number {
+  return (a + b) / 2;
+}
+
+// ---------------------------------------------------------------------------
+// Section 6 — Limit theorems & approximation
+// ---------------------------------------------------------------------------
+
+/** Error function (Abramowitz & Stegun 7.1.26 approximation). */
+function erf(x: number): number {
+  const t = 1 / (1 + 0.3275911 * Math.abs(x));
+  const y =
+    1 -
+    ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) *
+      t *
+      Math.exp(-x * x);
+  return x >= 0 ? y : -y;
+}
+
+/** Standard normal CDF Φ(z). */
+export function normalCdf(z: number): number {
+  return 0.5 * (1 + erf(z / Math.SQRT2));
+}
+
+/** Two-tailed standard-normal probability P(|Z| ≥ k). */
+export function normalTwoTail(k: number): number {
+  return 2 * (1 - normalCdf(k));
+}
+
+/** z-score: how many standard deviations x is from the mean. */
+export function zScore(x: number, mu: number, sigma: number): number {
+  return (x - mu) / sigma;
+}
+
+/** Chebyshev's bound on P(|X − μ| ≥ kσ): at most 1/k². */
+export function chebyshevBound(k: number): number {
+  return k > 0 ? 1 / (k * k) : 1;
+}
+
+/**
+ * Normal approximation to a Binomial(n, p) CDF with continuity correction:
+ * P(X ≤ k) ≈ Φ((k + 0.5 − np) / √(np(1−p))).
+ */
+export function normalApproxBinomialAtMost(n: number, p: number, k: number): number {
+  const mu = n * p;
+  const sd = Math.sqrt(n * p * (1 - p));
+  return normalCdf((k + 0.5 - mu) / sd);
+}
+
+/** Normal approximation to P(a ≤ X ≤ b) for a Binomial(n, p), with continuity correction. */
+export function normalApproxBinomialBetween(n: number, p: number, a: number, b: number): number {
+  const mu = n * p;
+  const sd = Math.sqrt(n * p * (1 - p));
+  return normalCdf((b + 0.5 - mu) / sd) - normalCdf((a - 0.5 - mu) / sd);
+}
+
+// ---------------------------------------------------------------------------
+// Section 7 — Stochastic processes
+// ---------------------------------------------------------------------------
+
+/**
+ * Gambler's ruin: probability of reaching N before 0, starting at i, when each
+ * step is +1 with probability p. Fair walks give i/N; biased walks use the ratio
+ * r = (1−p)/p.
+ */
+export function reachTargetProbability(i: number, N: number, p: number): number {
+  if (p === 0.5) return i / N;
+  const r = (1 - p) / p;
+  return (1 - Math.pow(r, i)) / (1 - Math.pow(r, N));
+}
+
+/** Probability of ruin (hitting 0 before N), starting at i with step-up prob p. */
+export function ruinProbability(i: number, N: number, p: number): number {
+  return 1 - reachTargetProbability(i, N, p);
+}
+
+/**
+ * Stationary distribution of a Markov chain via power iteration: the long-run
+ * fraction of time spent in each state. `P[i][j]` is the probability of moving
+ * from state i to state j (rows sum to 1).
+ */
+export function markovStationary(P: number[][], iters = 2000): number[] {
+  const n = P.length;
+  let pi = new Array(n).fill(1 / n);
+  for (let t = 0; t < iters; t++) {
+    const next = new Array(n).fill(0);
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) next[j] += pi[i] * P[i][j];
+    pi = next;
+  }
+  return pi;
+}
+
+/** Mean number of offspring for a branching process given its offspring PMF. */
+export function offspringMean(probs: number[]): number {
+  return probs.reduce((s, p, i) => s + i * p, 0);
+}
+
+/**
+ * Extinction probability of a branching process: the smallest fixed point of the
+ * offspring generating function, found by iterating q ← Σ pᵢ qⁱ from q = 0.
+ */
+export function extinctionProbability(probs: number[]): number {
+  let q = 0;
+  for (let t = 0; t < 1000; t++) {
+    let nq = 0;
+    for (let i = 0; i < probs.length; i++) nq += probs[i] * Math.pow(q, i);
+    if (Math.abs(nq - q) < 1e-12) return nq;
+    q = nq;
+  }
+  return q;
+}
+
+// ---------------------------------------------------------------------------
+// Section 8 — Geometric & continuous probability
+// ---------------------------------------------------------------------------
+
+/** Buffon's needle: probability a length-L needle crosses lines spaced d apart (L ≤ d): 2L/(πd). */
+export function buffonProbability(L: number, d: number): number {
+  return (2 * L) / (Math.PI * d);
+}
+
+/** Mean of the r-th order statistic of n iid Uniform(0,1) draws: r/(n+1). */
+export function uniformOrderMean(n: number, r: number): number {
+  return r / (n + 1);
+}
+
+/** Expected distance between two independent Uniform(0,1) points: 1/3. */
+export function expectedAbsDifferenceUniform(): number {
+  return 1 / 3;
+}
+
+/** Probability three pieces of a randomly broken unit stick form a triangle: 1/4. */
+export function brokenStickTriangleProbability(): number {
+  return 0.25;
+}
+
+/**
+ * Bertrand paradox: probability a "random" chord is longer than the inscribed
+ * equilateral triangle's side, by method 0 (random endpoints) = 1/3, method 1
+ * (random radius) = 1/2, method 2 (random midpoint) = 1/4.
+ */
+export function bertrandLongerThanSide(method: number): number {
+  return [1 / 3, 1 / 2, 1 / 4][Math.max(0, Math.min(2, Math.round(method)))];
+}
+
+/** Pearson correlation of paired samples (used to verify the scatter sim). */
+export function pearson(xs: number[], ys: number[]): number {
+  const n = xs.length;
+  if (n === 0) return 0;
+  const mx = xs.reduce((a, b) => a + b, 0) / n;
+  const my = ys.reduce((a, b) => a + b, 0) / n;
+  let sxy = 0;
+  let sxx = 0;
+  let syy = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = xs[i] - mx;
+    const dy = ys[i] - my;
+    sxy += dx * dy;
+    sxx += dx * dx;
+    syy += dy * dy;
+  }
+  return sxx === 0 || syy === 0 ? 0 : sxy / Math.sqrt(sxx * syy);
+}

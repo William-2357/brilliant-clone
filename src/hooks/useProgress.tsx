@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import type { ReactNode } from 'react';
 import { backend } from '../lib/backend';
 import type { ProgressMap, UserStats } from '../lib/storage';
-import { emptyStats } from '../lib/storage';
+import { emptyStats, emptyArcade, ARCADE_STARTING_BANKROLL } from '../lib/storage';
 import type { Lesson, LessonProgress, LessonStep, ProblemResult } from '../types/lesson';
 import { useAuth } from './useAuth';
 import {
@@ -33,6 +33,12 @@ interface ProgressContextValue {
   resetLessonResults(lesson: Lesson): void;
   /** Mark today's Problem of the Day as solved — advances the daily streak. */
   recordPotdSolved(): void;
+  /** Arcade: record one graded decision (whether it matched the EV-optimal play). */
+  recordArcadeDecision(wasOptimal: boolean): void;
+  /** Arcade: persist a settled hand — new bankroll and net play-chip change. */
+  recordArcadeRound(netDelta: number, bankroll: number): void;
+  /** Arcade: reset the play-chip bankroll to the starting balance (lifetime accuracy kept). */
+  resetArcadeBankroll(): void;
 }
 
 const ProgressContext = createContext<ProgressContextValue | null>(null);
@@ -163,6 +169,40 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
         // if today is already counted, so a same-day re-solve won't double-advance.
         const now = Date.now();
         commitStats(bumpDailyActivity(recordActiveDay(statsRef.current, now), now, 1));
+      },
+      recordArcadeDecision: (wasOptimal) => {
+        const prev = statsRef.current;
+        const a = prev.arcade ?? emptyArcade();
+        commitStats({
+          ...prev,
+          arcade: {
+            ...a,
+            decisionsTotal: a.decisionsTotal + 1,
+            decisionsCorrect: a.decisionsCorrect + (wasOptimal ? 1 : 0),
+          },
+        });
+      },
+      recordArcadeRound: (netDelta, bankroll) => {
+        const prev = statsRef.current;
+        const a = prev.arcade ?? emptyArcade();
+        commitStats({
+          ...prev,
+          arcade: {
+            ...a,
+            bankroll,
+            netChips: a.netChips + netDelta,
+            handsPlayed: a.handsPlayed + 1,
+            bestBankroll: Math.max(a.bestBankroll, bankroll),
+          },
+        });
+      },
+      resetArcadeBankroll: () => {
+        const prev = statsRef.current;
+        const a = prev.arcade ?? emptyArcade();
+        commitStats({
+          ...prev,
+          arcade: { ...a, bankroll: ARCADE_STARTING_BANKROLL },
+        });
       },
       resetLessonResults: (lesson) => {
         const firstStepId = lesson.steps[0]?.id ?? '';

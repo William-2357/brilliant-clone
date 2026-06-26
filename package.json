@@ -8,7 +8,13 @@
     "dev:test": "vite --mode test --port 53117 --strictPort",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "preview": "vite preview",
+    "genloop": "tsx scripts/genloop/run.ts",
+    "smoke": "tsx scripts/smoke-content.ts",
+    "coach:dev": "wrangler dev -c worker/wrangler.jsonc",
+    "coach:deploy": "wrangler deploy -c worker/wrangler.jsonc",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:report": "playwright show-report"
@@ -21,6 +27,7 @@
     "react-dom": "^19.2.6"
   },
   "devDependencies": {
+    "@cursor/sdk": "^1.0.22",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.61.1",
     "@types/node": "^24.12.3",
@@ -32,8 +39,11 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
     "playwright": "^1.61.1",
+    "tsx": "^4.22.4",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
-    "vite": "^8.0.12"
+    "vite": "^8.0.12",
+    "vitest": "^4.1.9",
+    "wrangler": "^4.105.0"
   }
 }

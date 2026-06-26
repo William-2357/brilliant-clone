@@ -1,0 +1,5 @@
+# Local secret for `npm run coach:dev` (wrangler dev). Copy this file to
+# worker/.dev.vars and paste your key. .dev.vars is gitignored — never commit it.
+# In production the key is a Worker secret, not this file:
+#   npx wrangler secret put OPENAI_API_KEY -c worker/wrangler.jsonc
+OPENAI_API_KEY=sk-...

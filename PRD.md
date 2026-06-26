@@ -197,6 +197,24 @@ users/{uid}/progress/{lessonId}
 |----|---------|-------------|
 | FR-9.1 | Problem generation (templated) | AI fills parameters into a fixed set of problem templates (e.g. "n flips, P(exactly k heads)"). The AI chooses parameters and writes the prose; the **answer is computed by the app's own probability functions**, never by the model. This guarantees the course never runs dry without risking incorrect answers |
 | FR-9.2 | Wrong-answer explanation | AI explains a specific wrong answer in plain language based on what the learner actually did |
+| FR-9.3 | **Live dealer-coach (Arcade)** | In the **Arcade / Apply** surface (a sibling to the Sandbox), the Blackjack trainer's coach explains, in plain language, *why* the mathematically optimal play wins at each decision. The coach **narrates** the numbers the deterministic engine already produced (EV per action, the optimal action, dealer bust chance, true count) and **must not compute or contradict them** — the same "AI varies wording, the app owns the numbers" contract as FR-9.1 |
+
+### Arcade / Apply — applied games (v1: Blackjack)
+
+The Arcade is where the probability ideas get *played*, not just predicted. v1 is a single
+game — **Blackjack**, **play chips only** (no real money, no purchases, resettable
+bankroll, a "for learning, not gambling" frame) — built around expected value, variance,
+and the house edge "in the long run."
+
+| ID | Requirement |
+|----|-------------|
+| FR-9.3a | A deterministic engine (`src/lib/blackjack.ts`, peer to `probability.ts`) is the source of truth for **every** number: hand values, legal actions, dealer behavior (6-deck shoe, S17, blackjack 3:2), the **exact EV of hit/stand/double** from the current shoe composition, the **optimal action** (`argmax EV`), bust chances, and the Hi-Lo running/true count. The LLM never decides any of these |
+| FR-9.3b | **Predict-then-verify for decisions:** the learner chooses an action; the engine then reveals the EV-optimal action and the EV gap, and a lifetime **decision accuracy** grades play quality, not luck. The long-run house edge is made visible via a cumulative-net chart and a companion "Blackjack Edge" simulation |
+| FR-9.3c | The engine is validated by unit tests **and** a **Monte-Carlo cross-check** (`blackjack.test.ts`): simulated EVs converge to the engine's EVs within tolerance, and the optimal actions reproduce textbook basic strategy |
+| FR-9.3d | The coach call runs **server-side** in a Firebase callable (`functions/src/index.ts → explainBlackjackPlay`) holding the OpenAI key; the browser never sees a secret (same key-handling rule as the rest of Phase 2) |
+| FR-9.3e | **AI-disabled / offline fallback (NFR-7, FR-10.3):** a settings toggle disables the AI coach, and whenever the callable is unavailable the client renders a **deterministic templated explanation** built from the same engine numbers (`src/lib/coach.ts`). The game and its coaching remain fully functional with AI off. The coach never blocks input |
+| FR-9.3f | Bankroll + lifetime decision-accuracy persist via the existing `Backend`/progress abstraction (`UserStats.arcade`) — no bespoke store |
+| FR-9.3g | Out of scope for v1 (hooks left in place): poker and other games, real money/purchases, multiplayer, split / insurance / surrender, and any "how to beat the casino" advice beyond explaining EV |
 
 ### AI Implementation Standards
 
@@ -259,11 +277,11 @@ A concept becomes eligible for review scheduling once its lesson is mastered. Mi
 | Simulations | HTML5 Canvas (manual math, no physics engine) |
 | Auth | Firebase Auth (email/password) |
 | Database | Firestore |
-| Phase 2 AI backend | **Firebase Cloud Functions** (callable, Auth-guarded) — the only place that holds the Anthropic key and calls Claude |
-| Phase 2 AI | Anthropic Claude API (invoked server-side from Functions, never the browser) |
+| Phase 2 AI backend | **Firebase Cloud Functions** (callable, Auth-guarded) — the only place that holds the OpenAI key and calls the model |
+| Phase 2 AI | OpenAI API (invoked server-side from Functions, never the browser) |
 | Deployment | Firebase Hosting + Functions (single platform) |
 
-> **AI key handling:** The Anthropic API key lives in Firebase Functions config/secrets, never in the client bundle. The client invokes callable functions (`generateProblem`, `explainWrongAnswer`); answer computation via the app's owned probability functions runs inside the function, next to the model call. **AI-disabled toggle (NFR-7/FR-10.3):** the client simply does not call these functions — the entire MVP path is client + Firestore only and is unaffected.
+> **AI key handling:** The OpenAI API key lives in Firebase Functions config/secrets, never in the client bundle. The client invokes callable functions (`generateProblem`, `explainWrongAnswer`); answer computation via the app's owned probability functions runs inside the function, next to the model call. **AI-disabled toggle (NFR-7/FR-10.3):** the client simply does not call these functions — the entire MVP path is client + Firestore only and is unaffected.
 
 ### File Structure
 
@@ -302,11 +320,17 @@ src/
 
 functions/                # Phase 2 only — Firebase Cloud Functions
   src/
-    index.ts              # callable: generateProblem, explainWrongAnswer
-    probability.ts        # owned probability fns (shared logic for answer computation)
-    templates.ts          # fixed problem templates the AI fills parameters into
-  # Anthropic key stored via Firebase Functions secrets, never in client
+    index.ts              # callable: explainBlackjackPlay (Arcade coach); generateProblem,
+                          #   explainWrongAnswer (planned). Narrates engine numbers only.
+  # OpenAI key stored via Firebase Functions secrets, never in client
 ```
+
+> **Arcade / Apply (Phase 2):** the Blackjack engine + coach add
+> `src/lib/blackjack.ts` (deterministic engine + `blackjack.test.ts`),
+> `src/lib/coach.ts` (templated explanation / offline fallback),
+> `src/lib/coachClient.ts` (lazy callable invocation), `src/pages/ArcadePage.tsx`,
+> `src/components/BlackjackTable.tsx`, and the `src/simulations/BlackjackEdge.tsx` sim.
+> Bankroll + decision accuracy live on `UserStats.arcade`.
 
 ### Routing
 
@@ -315,6 +339,8 @@ functions/                # Phase 2 only — Firebase Cloud Functions
 /login     → LoginPage
 /learn     → CoursePage (AuthGuard)
 /learn/:id → LessonPage (AuthGuard)
+/sandbox   → SandboxPage (AuthGuard)
+/arcade    → ArcadePage — Arcade / Apply, Blackjack trainer (AuthGuard, Phase 2)
 ```
 
 ---

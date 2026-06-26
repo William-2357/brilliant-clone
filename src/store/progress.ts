@@ -1,6 +1,6 @@
-import type { Lesson, LessonProgress, LessonState, ProblemResult } from '../types/lesson';
+import type { CourseSection, Lesson, LessonProgress, LessonState, ProblemResult } from '../types/lesson';
 import type { ProgressMap, UserStats } from '../lib/storage';
-import { gradableSteps } from '../content/lessons';
+import { gradableSteps, sections, getSectionForLesson } from '../content/lessons';
 import { randomSeed } from '../lib/rng';
 
 /** Local-time calendar day as YYYY-MM-DD (stable for streak comparisons). */
@@ -114,17 +114,68 @@ export function isCleared(p: LessonProgress | undefined): boolean {
   return p?.cleared === true || p?.mastered === true;
 }
 
+/** Built lessons in a section (coming-soon lessons don't count toward gating). */
+function sectionBuiltLessons(section: CourseSection): Lesson[] {
+  return section.lessons.filter((l) => l.status === 'built');
+}
+
+/**
+ * A section is "cleared" when all of its built lessons are cleared and, if it has
+ * a checkpoint quiz, that checkpoint is cleared too. Empty / coming-soon sections
+ * (no built lessons) are treated as cleared so they never block the next unit.
+ */
+function sectionCleared(section: CourseSection, all: ProgressMap): boolean {
+  const built = sectionBuiltLessons(section);
+  if (built.length === 0) return true;
+  if (!built.every((l) => isCleared(all[l.id]))) return false;
+  if (section.checkpointId) return isCleared(all[section.checkpointId]);
+  return true;
+}
+
+export type SectionState = 'locked' | 'available' | 'in-progress' | 'complete';
+
+/**
+ * Unit-gating: a section unlocks when every prior section is cleared (or with the
+ * free-navigation toggle). Inside an unlocked section, all lessons are playable.
+ */
+export function sectionState(
+  section: CourseSection,
+  all: ProgressMap,
+  unlockAll = false,
+): SectionState {
+  const idx = sections.findIndex((s) => s.id === section.id);
+  const priorComplete = unlockAll || sections.slice(0, idx).every((s) => sectionCleared(s, all));
+  if (!priorComplete) return 'locked';
+  const built = sectionBuiltLessons(section);
+  if (built.length > 0 && sectionCleared(section, all)) return 'complete';
+  const started = built.some((l) => {
+    const p = all[l.id];
+    return p && (p.attempts > 0 || Object.keys(p.results ?? {}).length > 0);
+  });
+  return started ? 'in-progress' : 'available';
+}
+
+/** Fraction of a section's built lessons that are cleared (0..1). */
+export function sectionProgressFraction(section: CourseSection, all: ProgressMap): number {
+  const built = sectionBuiltLessons(section);
+  if (built.length === 0) return 0;
+  const cleared = built.filter((l) => isCleared(all[l.id])).length;
+  return cleared / built.length;
+}
+
+/**
+ * Lesson availability under unit-gating: a lesson is locked only when its section
+ * is locked (or it is coming-soon). Within an unlocked section every lesson is
+ * freely playable, in any order.
+ */
 export function lessonState(
   lesson: Lesson,
   all: ProgressMap,
   unlockAll = false,
 ): LessonState {
   if (lesson.status === 'coming-soon') return 'locked';
-  const prereqCleared =
-    unlockAll ||
-    lesson.prerequisiteId === null ||
-    isCleared(all[lesson.prerequisiteId]);
-  if (!prereqCleared) return 'locked';
+  const section = getSectionForLesson(lesson.id);
+  if (section && sectionState(section, all, unlockAll) === 'locked') return 'locked';
   const p = all[lesson.id];
   if (p?.mastered) return 'mastered';
   if (p?.cleared) return 'cleared';

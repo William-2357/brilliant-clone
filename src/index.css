@@ -19,6 +19,10 @@
   --accent-bg: #e1f5ee;
   --cyan: #0284c7;
 
+  /* Chrome-only per-section accent (unit cards, sidebar headers). Set inline per
+     section; defaults to the brand accent. NEVER read by the Canvas sims. */
+  --section-accent: var(--accent);
+
   --good: #16a34a;
   --good-bg: rgba(22, 163, 74, 0.12);
   --warn: #e0930a;
@@ -42,6 +46,9 @@
   --amber-icon: #854f0b;
   --amber-bg: #faeeda;
   --amber-fill: #ef9f27;
+
+  /* Arcade playing-card red pip (decorative; defined for both themes). */
+  --card-red: #d23b3b;
 
   --shadow-sm: 0 1px 2px rgba(16, 36, 48, 0.06);
   --shadow: 0 2px 8px rgba(16, 36, 48, 0.07), 0 1px 2px rgba(16, 36, 48, 0.06);
@@ -97,6 +104,8 @@
   --amber-icon: #e9b15a;
   --amber-bg: rgba(239, 159, 39, 0.16);
   --progress-doing: #fbbf24;
+
+  --card-red: #f1707a;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow: 0 2px 10px rgba(0, 0, 0, 0.4);

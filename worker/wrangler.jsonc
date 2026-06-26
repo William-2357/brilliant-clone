@@ -1,0 +1,19 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "longrun-coach",
+  "main": "coach.mjs",
+  "compatibility_date": "2026-06-01",
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  // Public (non-secret) config. The OpenAI key is a SECRET — set it with
+  //   npx wrangler secret put OPENAI_API_KEY -c worker/wrangler.jsonc
+  "vars": {
+    "COACH_MODEL": "gpt-4o-mini",
+    // Comma-separated browser origins allowed to call this Worker. Leave blank (or "*")
+    // to allow all during setup; tighten to your site once deployed, e.g.:
+    //   "https://brilliant-clone-69be8.web.app,https://brilliant-clone-69be8.firebaseapp.com,http://localhost:5173"
+    "ALLOWED_ORIGINS": ""
+  }
+}

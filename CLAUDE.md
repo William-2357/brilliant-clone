@@ -12,26 +12,34 @@ rather than decoration.
 
 - **Persona:** "The Curious Adult Learner" — short (3–5 min) sessions, feedback
   that explains rather than grades, a clear sense of mastery and what's next.
-- **Status:** Phase 1 (MVP) complete; **8 lessons** built. A **Khan Academy–style
-  UI redesign** sits on top (full-page layout with a sticky topbar + responsive
-  sidebar, light/dark theme, a **Chakra Petch** display font for the wordmark +
-  titles, per-lesson icons, segmented grading, KaTeX lectures, confetti, and a
-  dedicated **profile page**). Problems are **generated from parameterized
-  templates** (a non-AI question pool that varies numbers/objects and cycles on
-  retry/replay). Phases 2 (AI) and 3 (learning science) are specced in `PRD.md`
-  but not yet built.
+- **Status:** **36 lessons across 8 sections** (units), all built — plus a Home
+  dashboard, Problem/Simulation of the Day, a 10-question **Final Test**, and an
+  **Arcade** (blackjack trainer). A **Khan Academy–style UI** drives it (full-page
+  layout with a sticky topbar + responsive sidebar, light/dark theme, a **Chakra
+  Petch** display font for the wordmark + titles, per-lesson icons, segmented
+  grading, KaTeX lectures, confetti, and a dedicated **profile page**). Problems are
+  **generated from parameterized templates** that vary numbers/objects and cycle on
+  retry/replay. **Phase 2 AI has begun** — the Arcade's *optional* dealer-coach can
+  call an LLM (see Hard rules). Phase 3 (learning science) is specced in `PRD.md`.
 
 ## Hard rules
 
-- **No AI in the app (Phase 1).** No model calls, generated content, or chatbot. This
-  is a graded constraint. AI features come later as *additions*, never replacements.
-- **`src/lib/probability.ts` is the single source of truth for every answer.** Lesson
-  answers are computed by these functions, never hand-typed. Simulations animate
-  *toward* these same values. If you add a problem, compute its answer from a function —
-  this includes the generated problems in `content/problemTemplates.ts`, which
-  parameterize a question and recompute the answer from `probability.ts`.
-- **The app must work with no backend config** (localStorage fallback). Don't make
-  Firebase a hard dependency of the core experience.
+- **AI is optional and additive — never the source of truth.** The only AI in the app
+  is the Arcade's **dealer-coach**, which merely *narrates* numbers the deterministic
+  engine already computed; it never decides answers, grading, EVs, or game outcomes.
+  The app and its coaching stay fully functional with AI disabled or unreachable (it
+  falls back to a deterministic templated explanation). Never let an LLM compute a
+  lesson answer, an EV, or a grade. The model call is **server-side only** — the OpenAI
+  key lives in the Cloudflare Worker (`worker/`), never in the client bundle.
+- **`src/lib/probability.ts` (lessons) and `src/lib/blackjack.ts` (Arcade) are the
+  single source of truth for every answer.** Answers/EVs are computed by these
+  functions, never hand-typed, and simulations animate *toward* those same values. If
+  you add a problem, compute its answer from a function — this includes the generated
+  problems in `content/problemTemplates.ts`, which recompute the answer from
+  `probability.ts`.
+- **The app must work with no backend config** (localStorage fallback) **and with no AI
+  configured**. Don't make Firebase or the coach endpoint a hard dependency of the core
+  experience.
 
 ## Commands
 
@@ -57,32 +65,48 @@ must pass.
 ```
 src/
   content/
-    lessons.ts          # all 8 lessons as typed data; the 5 problems per lesson are
-                        #   the slot definitions + fallback content
+    sections.ts         # canonical 8-section ("unit") structure — order + lesson ids
+    lessons.ts          # assembles the course (36 lessons) from sections + the topic
+                        #   modules below; authors the original lessons + 10-q finalTest
+    foundations.ts … geometric.ts  # the rest of the lessons, by section (combinatorics,
+                        #   conditional, rv, distributions, limit, stochastic, geometric)
     problemTemplates.ts # per-slot question generators — vary numbers/objects, recompute
                         #   answers from probability.ts, cycle on retry/replay
+    generated/          # large pre-generated problem pool (authored by scripts/genloop)
+    validate.ts         # content-shape validator (structure invariants)
+    daily.ts            # date-seeded Problem/Simulation of the Day picks
+    sandboxSims.ts      # free-play simulation catalog (Sandbox + daily spotlight)
     simData.ts          # prize-wheel definitions shared by content + ExpectedValue sim
   lib/
-    probability.ts      # owned probability fns — SOURCE OF TRUTH for answers
+    probability.ts      # owned probability fns — SOURCE OF TRUTH for lesson answers
+    blackjack.ts        # deterministic blackjack engine (EV/optimal/count) — Arcade truth
+    coach.ts            # dealer-coach templated explanation (offline fallback + AI grounding)
+    coachClient.ts      # timeout-guarded coach call (Worker endpoint → callable fallback)
+    answer.ts           # parse typed answers (decimals/fractions) + per-unit hints
     rng.ts              # seeded PRNG (mulberry32) + helpers for question generation
-    storage.ts          # Backend / Auth / Progress / UserStats interfaces
+    simSpeed.ts         # global animation-speed multiplier (read inside rAF loops)
+    storage.ts          # Backend / Auth / Progress / UserStats (+ ArcadeStats) interfaces
     localBackend.ts     # localStorage adapter (fallback, demo-grade auth)
     firebaseBackend.ts  # Firestore + Firebase Auth adapter (lazy init, side-effect-free import)
     backend.ts          # auto-selects firebase vs local from VITE_FIREBASE_* env
-    router.ts           # tiny custom hash router (NOTE: react-router-dom is in
-                        #   package.json but UNUSED — do not reintroduce it)
+    router.ts           # tiny custom hash router (no router dependency)
     confetti.ts         # dependency-free canvas confetti burst (respects reduced-motion)
-  simulations/          # one Canvas component per SimulationType + index.ts registry
-                        #   (BirthdayProblem remains for the Sandbox; it has no lesson)
-  components/           # LessonPlayer (core flow), FeedbackBanner, CompletionScreen,
-                        #   AppLayout (topbar + sidebar w/ a Sandbox tab), ProfileMenu
-                        #   (avatar that links to the profile page), QuestionBar (segmented
-                        #   per-question status), LectureContent (KaTeX), OrderItems /
-                        #   DrawDistribution (non-numeric interactions), LessonIcon, ...
-  hooks/              # useAuth, useProgress (incl. streaks), useUnlockAll, useTheme
+  simulations/          # ~30 lazy-loaded Canvas sims + index.ts registry + canvasUtils
+  components/           # LessonPlayer (core flow), TestPlayer (deferred-feedback exam),
+                        #   FeedbackBanner, CompletionScreen, AppLayout (topbar + sidebar),
+                        #   QuestionBar (segmented status), LectureContent (KaTeX), OrderItems /
+                        #   DrawDistribution / PredictScale (interactions), MasteryCurve,
+                        #   ActivityHeatmap, ProblemOfTheDay, SpeedControl, BlackjackTable
+                        #   (the Arcade game), AuthGuard, ProfileMenu, LessonIcon, ...
+  hooks/              # useAuth, useProgress (streaks + daily activity + arcade),
+                      #   useUnlockAll, useTheme, useCoachAI
   store/progress.ts   # pure logic: cleared/mastery, unlock state, next-step, streak math
-  pages/              # LoginPage, CoursePage, LessonPage, SandboxPage, ProfilePage
+  pages/              # LoginPage, HomePage, CoursePage, UnitPage, LessonPage, SandboxPage,
+                      #   ArcadePage, ProblemPage, SimulationPage, TestPage, ProfilePage
   types/lesson.ts     # content model types
+
+worker/               # Phase-2 AI backend — Cloudflare Worker (free, no Blaze); holds the key
+scripts/genloop/      # offline generator that authors content/generated/**
 ```
 
 ### Content model (`types/lesson.ts`)
@@ -139,8 +163,10 @@ Rules in `firestore.rules` restrict each user to their own `users/{uid}/**`.
 - `currentStepId` enables exact-step resume.
 - 2 wrong answers in a row re-surfaces the *current* lesson's own concept material;
   the player also offers an inline "Review lecture" panel on problem steps.
-- **Streaks:** `recordActiveDay` advances a daily streak (same day = no-op, next day =
-  +1, gap = reset). Recorded on lesson start and on each answer. Stored in `UserStats`.
+- **Streaks:** the daily streak is advanced **only by solving the Problem of the Day**
+  (which calls `recordActiveDay`: same day = no-op, next day = +1, gap = reset). Other
+  activity (lessons, the Final Test) counts toward the **activity heatmap** but no
+  longer moves the streak. Stored in `UserStats`.
 - The `QuestionBar` renders one segment per problem (green/yellow/red/neutral); it
   replaced the old single continuous progress bar.
 
@@ -210,5 +236,4 @@ are registered in `simulations/index.ts`. When adding/maintaining one:
 ## Docs
 
 - `PRD.md` — the living product spec (all three phases). Source of intent.
-- `Build_Brilliant_PRD.md` — original assignment brief (historical; don't edit).
 - `README.md` — setup, architecture, deploy steps.

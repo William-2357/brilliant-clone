@@ -38,6 +38,7 @@ import {
   drawMatchesNoReplacement,
 } from '../lib/probability';
 import { wheelConfig } from './simData';
+import { generatedBySlot } from './generated';
 
 interface ProblemTemplate {
   /** Stable slot id — must match a problem step id in lessons.ts. */
@@ -1263,11 +1264,20 @@ export function generateProblem(
   retry = 0,
 ): LessonStep {
   if (base.type !== 'problem') return base;
-  const variants = problemTemplates[lessonId]?.filter((x) => x.id === base.id);
-  if (!variants?.length) return base;
   // `cycle` advances on each retry (second try) and each lesson replay, so the
   // pulled problem changes rather than repeating.
   const cycle = attempt * 2 + retry;
+  const seedFor = (seed ^ hashString(base.id) ^ Math.imul(cycle + 1, 0x9e3779b1)) >>> 0;
+  // Prefer a generated-bank variant for this slot when one exists, so generated problems
+  // replace the hand-written question bank slot-by-slot (keeping per-retry/replay
+  // variation). Slots without bank entries fall back to the templates below, then static.
+  const bank = generatedBySlot[base.id];
+  if (bank?.length) {
+    const g = bank[makeRng(seedFor).int(0, bank.length - 1)];
+    return { ...g.step, id: base.id };
+  }
+  const variants = problemTemplates[lessonId]?.filter((x) => x.id === base.id);
+  if (!variants?.length) return base;
   const t = variants[cycle % variants.length];
-  return t.build(makeRng((seed ^ hashString(base.id) ^ Math.imul(cycle + 1, 0x9e3779b1)) >>> 0));
+  return t.build(makeRng(seedFor));
 }
