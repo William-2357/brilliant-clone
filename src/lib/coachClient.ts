@@ -1,30 +1,40 @@
 /**
- * Client side of the live dealer-coach. The model call ALWAYS happens server-side —
- * the browser never holds the OpenAI key. The client POSTs the game state to the
- * HTTPS endpoint in `VITE_COACH_ENDPOINT` (the free Cloudflare Worker in `worker/`,
- * or a local `wrangler dev` server). When no endpoint is configured the coach uses
- * no AI at all.
+ * Client transport for the app's AI helpers. The model call ALWAYS happens
+ * server-side (the Cloudflare Worker in `worker/`) — the browser never holds the
+ * OpenAI key. The client POSTs to the HTTPS endpoint in `VITE_COACH_ENDPOINT`,
+ * routed by `kind`:
+ *   - 'blackjack' → Arcade dealer-coach (narrates the engine's EV numbers)
+ *   - 'explain'   → wrong-answer explanations for lessons + the Problem of the Day
  *
- * Degrades gracefully: returns null on ANY failure (not configured, network error,
- * timeout, bad response) so the caller falls back to the deterministic templated
- * explanation — the game's coaching always works with AI disabled or offline. Never
- * throws; never blocks longer than `timeoutMs`.
+ * Degrades gracefully: returns null on ANY failure (no endpoint configured, network
+ * error, timeout, bad response) so callers fall back to the deterministic / written
+ * text — the app's coaching always works with AI off or the Worker unreachable.
+ * Never throws; never blocks longer than `timeoutMs`.
  */
 import type { CoachInput } from './coach';
+import type { ExplainInput } from './explain';
 
-/** POST the game state to the HTTPS coach endpoint; returns its text or null. */
-async function fetchFromEndpoint(
-  url: string,
-  input: CoachInput,
+type AiKind = 'blackjack' | 'explain';
+
+/** True when an AI endpoint is configured (so a request will actually be attempted). */
+export function aiConfigured(): boolean {
+  return Boolean(import.meta.env.VITE_COACH_ENDPOINT);
+}
+
+async function requestAi(
+  kind: AiKind,
+  input: CoachInput | ExplainInput,
   timeoutMs: number,
 ): Promise<string | null> {
+  const endpoint = import.meta.env.VITE_COACH_ENDPOINT;
+  if (!endpoint) return null;
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
-    const res = await fetch(url, {
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ input }),
+      body: JSON.stringify({ kind, input }),
       signal: controller.signal,
     });
     clearTimeout(timer);
@@ -38,13 +48,18 @@ async function fetchFromEndpoint(
 }
 
 /**
- * Request an AI narration for a decision from the configured coach endpoint
- * (`VITE_COACH_ENDPOINT`). The payload is the structured game state plus the engine's
- * numbers and the optimal action; the server narrates, never recomputes. Returns the
- * AI text, or null to fall back to the offline explanation.
+ * Blackjack dealer-coach narration. The server narrates the engine's numbers and
+ * never recomputes them. Returns the AI text, or null to fall back to the template.
  */
-export async function fetchAiCoach(input: CoachInput, timeoutMs = 6000): Promise<string | null> {
-  const endpoint = import.meta.env.VITE_COACH_ENDPOINT;
-  if (!endpoint) return null;
-  return fetchFromEndpoint(endpoint, input, timeoutMs);
+export function fetchAiCoach(input: CoachInput, timeoutMs = 6000): Promise<string | null> {
+  return requestAi('blackjack', input, timeoutMs);
+}
+
+/**
+ * Wrong-answer explanation for a lesson / Problem-of-the-Day question. The server is
+ * told the app-computed correct answer is ground truth. Returns the AI text, or null
+ * to fall back to the author's hand-written incorrect feedback.
+ */
+export function fetchAiExplanation(input: ExplainInput, timeoutMs = 6000): Promise<string | null> {
+  return requestAi('explain', input, timeoutMs);
 }

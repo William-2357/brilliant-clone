@@ -1,16 +1,21 @@
-# Dealer-coach Worker (no Blaze plan)
+# AI helper Worker (no Blaze plan)
 
-A tiny Cloudflare Worker that holds the OpenAI key and narrates the blackjack
-engine's numbers. It runs on Cloudflare's **free tier** — no Firebase Blaze plan,
-no Cloud Functions. The browser never sees the key.
+A tiny Cloudflare Worker that holds the OpenAI key and powers the app's two AI
+helpers, routed by a `kind` field: the blackjack **dealer-coach** (`'blackjack'`)
+and **wrong-answer explanations** for lessons + the Problem of the Day (`'explain'`).
+It runs on Cloudflare's **free tier** — no Firebase Blaze plan, no Cloud Functions.
+The browser never sees the key.
 
 This is the free analog of a Supabase Edge Function: an external origin that holds
 the secret, which your Firebase-hosted site calls cross-origin (CORS) with a
-graceful fallback. It only ever **narrates** the numbers `src/lib/blackjack.ts`
-already computed (EV per action, the optimal action, bust chances, the true
-count) — it never recomputes or contradicts them. If the Worker is unreachable,
-the app falls back to the deterministic explanation in `src/lib/coach.ts`, so
-coaching always works.
+graceful fallback. It only ever **narrates / explains** numbers the app already
+computed (the blackjack engine's EVs and optimal action, or a problem's correct
+answer) — it never recomputes or contradicts them. If the Worker is unreachable,
+the app falls back to the deterministic blackjack template (`src/lib/coach.ts`) or
+the author's hand-written feedback, so the app always works.
+
+> Already deployed the coach? **Redeploy** (`npm run coach:deploy`) after pulling
+> this update so the Worker handles the new `kind: 'explain'` requests.
 
 ## One-time deploy
 
@@ -42,7 +47,9 @@ npm run build && firebase deploy --only hosting
 ```
 
 Turn the **AI dealer-coach** toggle on in the Arcade — the badge shows **AI** when
-a narration arrives, **offline** if it falls back.
+a narration arrives, **offline** if it falls back. Wrong-answer explanations in the
+lessons + Problem of the Day are controlled by the **AI explanations** toggle in
+**Profile → Preferences** (on by default).
 
 ## Local development
 
@@ -65,6 +72,12 @@ rate-limiting rule or Turnstile in front of the Worker.
 
 ## Contract
 
-`POST { input }` where `input` is the `CoachInput` shape from `src/lib/coach.ts`.
-Returns `{ text }` — 2-3 plain-language sentences grounded in the engine's numbers.
-On any error it returns a non-200 JSON `{ error }`, and the client falls back.
+`POST { kind, input }` → `{ text }` (2-4 plain-language sentences grounded in the
+app's numbers). `kind` defaults to `'blackjack'`. On any error it returns a non-200
+JSON `{ error }`, and the client falls back.
+
+- `kind: 'blackjack'`, `input`: the `CoachInput` shape from `src/lib/coach.ts`
+  (player hand, dealer upcard, `ev` per action, `optimalAction`, bust chances, count).
+- `kind: 'explain'`, `input`: the `ExplainInput` shape from `src/lib/explain.ts`
+  (`topic`, `question`, `interaction`, `unit`, `learnerAnswer`, `correctAnswer`,
+  `tolerance`, `authorHint`).

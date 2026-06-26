@@ -5,9 +5,12 @@ import { generateProblem } from '../content/problemTemplates';
 import { hashString } from '../lib/rng';
 import { recommendNext, allQuestionsResolved } from '../store/progress';
 import { useProgress } from '../hooks/useProgress';
+import { useExplainAI } from '../hooks/useExplainAI';
 import { simulations } from '../simulations';
 import { isCorrect } from '../lib/probability';
 import { parseNumericInput, answerHint } from '../lib/answer';
+import { fetchAiExplanation, aiConfigured } from '../lib/coachClient';
+import type { ExplainInput } from '../lib/explain';
 import { fireConfetti } from '../lib/confetti';
 import FeedbackBanner from './FeedbackBanner';
 import MilestoneBanner from './MilestoneBanner';
@@ -30,6 +33,7 @@ interface Props {
 
 export default function LessonPlayer({ lesson }: Props) {
   const progress = useProgress();
+  const [explainAI] = useExplainAI();
   const conceptStep = useMemo(() => lesson.steps.find((s) => s.type === 'concept'), [lesson]);
 
   const [stepIndex, setStepIndex] = useState(0);
@@ -57,6 +61,14 @@ export default function LessonPlayer({ lesson }: Props) {
   const [seed, setSeed] = useState<number>(() => progress.get(lesson.id)?.seed ?? hashString(lesson.id));
   const [attempt, setAttempt] = useState<number>(() => progress.get(lesson.id)?.attempt ?? 0);
   const [retry, setRetry] = useState(0);
+
+  // AI wrong-answer explanation (replaces the hand-written feedback on a final miss
+  // when an AI backend is connected + the toggle is on; falls back otherwise).
+  const [aiExplain, setAiExplain] = useState<{
+    text: string;
+    source: 'template' | 'ai' | 'loading';
+  } | null>(null);
+  const explainSeqRef = useRef(0);
 
   // Number of attempts spent on the current question, and the last lock outcome.
   const triesRef = useRef(0);
@@ -87,6 +99,9 @@ export default function LessonPlayer({ lesson }: Props) {
     setCorrect(false);
     setResolved(false);
     setRetry(0);
+    // Invalidate any in-flight explanation request and clear the panel.
+    explainSeqRef.current += 1;
+    setAiExplain(null);
     triesRef.current = 0;
     lastCorrectRef.current = false;
     // Reset the run trigger so a freshly shown problem does NOT auto-run on mount.
@@ -213,6 +228,55 @@ export default function LessonPlayer({ lesson }: Props) {
     setResolved(true);
     if (result.triggerReview) setShowReview(true);
     setPhase('feedback');
+    requestExplanation(currentStep);
+  }
+
+  /** Human-readable learner vs. correct answer for the current interaction. */
+  function describeAnswers(s: LessonStep): { learner: string; correct: string } {
+    const it = s.interaction ?? 'numeric';
+    if (it === 'order') {
+      return { learner: order.join(' › '), correct: (s.answerOrder ?? []).join(' › ') };
+    }
+    if (it === 'draw') {
+      return { learner: 'a hand-sketched distribution', correct: 'the computed distribution shape' };
+    }
+    if (it === 'wheel') {
+      const ev = (s.wheelPayouts ?? []).reduce((sum, v, i) => sum + v * (probs[i] ?? 0), 0);
+      return { learner: `an expected payout of $${ev.toFixed(2)}`, correct: `$${s.answer}` };
+    }
+    const learner = guess.trim() === '' ? '(no value entered)' : guess.trim();
+    const correct =
+      s.unit === 'count' || s.unit === 'sum' ? String(s.answer) : (s.answer ?? 0).toFixed(3);
+    return { learner, correct };
+  }
+
+  /**
+   * On a resolved miss, render the hand-written hint immediately, then swap in an AI
+   * explanation if the toggle is on and a backend answers (else keep the hint).
+   */
+  function requestExplanation(currentStep: LessonStep) {
+    const hint = currentStep.feedback?.incorrect ?? '';
+    // Only reach for AI when the toggle is on AND an endpoint is configured; otherwise
+    // the hand-written feedback stands (no "thinking…" flash without a backend).
+    if (!explainAI || !hint || !aiConfigured()) return;
+    const { learner, correct: correctStr } = describeAnswers(currentStep);
+    const input: ExplainInput = {
+      surface: 'lesson',
+      topic: conceptStep ? `${lesson.title} — ${conceptStep.title}` : lesson.title,
+      question: currentStep.question ? `${currentStep.body} ${currentStep.question}` : currentStep.body,
+      interaction: currentStep.interaction ?? 'numeric',
+      unit: currentStep.unit,
+      learnerAnswer: learner,
+      correctAnswer: correctStr,
+      tolerance: currentStep.tolerance,
+      authorHint: hint,
+    };
+    const seq = ++explainSeqRef.current;
+    setAiExplain({ text: hint, source: 'loading' });
+    void fetchAiExplanation(input).then((ai) => {
+      if (seq !== explainSeqRef.current) return;
+      setAiExplain(ai ? { text: ai, source: 'ai' } : { text: hint, source: 'template' });
+    });
   }
 
   function celebrate(masteredNow: boolean) {
@@ -523,8 +587,19 @@ export default function LessonPlayer({ lesson }: Props) {
                 {correct || resolved ? (
                   <FeedbackBanner
                     correct={correct}
-                    message={correct ? step.feedback.correct : step.feedback.incorrect}
+                    message={
+                      correct
+                        ? step.feedback.correct
+                        : aiExplain?.text ?? step.feedback.incorrect
+                    }
                     truth={truthLine}
+                    source={
+                      !correct && aiExplain?.source === 'ai'
+                        ? 'ai'
+                        : !correct && aiExplain?.source === 'loading'
+                          ? 'loading'
+                          : undefined
+                    }
                   />
                 ) : (
                   <FeedbackBanner

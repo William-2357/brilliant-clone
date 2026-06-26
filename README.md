@@ -157,9 +157,19 @@ npm run coach:dev                                      # wrangler dev on :8787
 #   then add to .env:  VITE_COACH_ENDPOINT=http://localhost:8787  and restart `npm run dev`
 ```
 
-See `worker/README.md` for the full setup and the `{ input } → { text }` contract. Out of scope for v1 (hooks left in
-place): poker and other games, real money/purchases, multiplayer, and split / insurance /
-surrender. The Arcade never offers "how to beat the casino" advice beyond explaining EV.
+See `worker/README.md` for the full setup and the `{ kind, input } → { text }` contract.
+
+**The same Worker also powers AI wrong-answer explanations** (PRD FR-9.2) in the lessons
+and the Problem of the Day: on a resolved miss the client sends the problem, the learner's
+answer, and the **app-computed correct answer** (ground truth) with `kind: 'explain'`, and
+the model explains *why* — never asserting a different number. It replaces the author's
+hand-written incorrect feedback only when the Worker is connected and the **AI explanations**
+toggle (Profile → Preferences) is on; otherwise the written feedback stands. No extra setup —
+it reuses `VITE_COACH_ENDPOINT`.
+
+Out of scope for v1 (hooks left in place): poker and other games, real money/purchases,
+multiplayer, and split / insurance / surrender. The Arcade never offers "how to beat the
+casino" advice beyond explaining EV.
 
 ## Tech stack
 
@@ -282,7 +292,8 @@ src/
     probability.ts          # owned probability functions (single source of truth for answers)
     blackjack.ts            # deterministic blackjack engine (EV/optimal/count) — Arcade's truth
     coach.ts                # dealer-coach templated explanation (offline fallback + AI grounding)
-    coachClient.ts          # timeout-guarded coach call → the Cloudflare Worker endpoint
+    explain.ts              # wrong-answer explanation payload (lessons + Problem of the Day)
+    coachClient.ts          # server transport for both AI tasks (worker endpoint, by kind)
     rng.ts                  # seeded PRNG (mulberry32) + hashString for question generation
     answer.ts               # parse typed answers (decimals/fractions) + per-unit hints
     simSpeed.ts             # global animation-speed multiplier (read inside rAF loops)
@@ -301,7 +312,7 @@ src/
                             #   ProblemOfTheDay, SandboxSpotlight, SpeedControl, LessonIcon,
                             #   BlackjackTable (the Arcade game), ProfileMenu, AuthGuard, ...
   hooks/                    # useAuth, useProgress (incl. streaks + daily activity + arcade),
-                            #   useUnlockAll, useTheme, useCoachAI
+                            #   useUnlockAll, useTheme, useCoachAI, useExplainAI
   store/progress.ts         # mastery / clear / next-lesson / streak / course-stats logic (pure)
   pages/                    # LoginPage, HomePage, CoursePage, UnitPage, LessonPage,
                             #   SandboxPage, ArcadePage, ProblemPage, SimulationPage,

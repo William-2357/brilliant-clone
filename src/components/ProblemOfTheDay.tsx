@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { dailyProblem, readPotdStatus, writePotdStatus, type PotdStatus } from '../content/daily';
 import type { LessonStep } from '../types/lesson';
 import { isCorrect } from '../lib/probability';
 import { parseNumericInput, answerHint } from '../lib/answer';
 import { useProgress } from '../hooks/useProgress';
+import { useExplainAI } from '../hooks/useExplainAI';
+import { fetchAiExplanation, aiConfigured } from '../lib/coachClient';
+import type { ExplainInput } from '../lib/explain';
 import { dayKey } from '../store/progress';
 import { fireConfetti } from '../lib/confetti';
 import { navigate } from '../lib/router';
@@ -33,6 +36,7 @@ function sliderMid(step: LessonStep): string {
  */
 export default function ProblemOfTheDay() {
   const progress = useProgress();
+  const [explainAI] = useExplainAI();
   const today = dayKey(new Date().getTime());
 
   // Deterministic per day: same problem all day, a fresh one tomorrow. Computed
@@ -49,6 +53,12 @@ export default function ProblemOfTheDay() {
   );
   const [tried, setTried] = useState(false);
   const [error, setError] = useState('');
+  // AI wrong-answer explanation (swaps in for the hand-written hint when connected).
+  const [aiExplain, setAiExplain] = useState<{
+    text: string;
+    source: 'template' | 'ai' | 'loading';
+  } | null>(null);
+  const explainSeqRef = useRef(0);
 
   if (!pick || !step) return null;
   const { lessonId, lessonTitle } = pick;
@@ -77,6 +87,31 @@ export default function ProblemOfTheDay() {
   function reveal() {
     setDone('revealed');
     writePotdStatus(today, 'revealed');
+    requestExplanation();
+  }
+
+  /** Render the hand-written hint, then swap in an AI explanation if connected. */
+  function requestExplanation() {
+    if (!explainAI || !step || !aiConfigured()) return;
+    const hint = step.feedback?.incorrect ?? '';
+    if (!hint) return;
+    const input: ExplainInput = {
+      surface: 'daily',
+      topic: lessonTitle,
+      question: step.question ? `${step.body} ${step.question}` : step.body,
+      interaction: step.interaction ?? 'numeric',
+      unit: step.unit,
+      learnerAnswer: guess.trim() === '' ? '(no value entered)' : guess.trim(),
+      correctAnswer: fmtNum(step, answer),
+      tolerance: step.tolerance,
+      authorHint: hint,
+    };
+    const seq = ++explainSeqRef.current;
+    setAiExplain({ text: hint, source: 'loading' });
+    void fetchAiExplanation(input).then((ai) => {
+      if (seq !== explainSeqRef.current) return;
+      setAiExplain(ai ? { text: ai, source: 'ai' } : { text: hint, source: 'template' });
+    });
   }
 
   return (
@@ -96,9 +131,16 @@ export default function ProblemOfTheDay() {
             message={
               done === 'solved'
                 ? step.feedback?.correct ?? 'Nicely done.'
-                : step.feedback?.incorrect ?? 'Here is the reasoning.'
+                : aiExplain?.text ?? step.feedback?.incorrect ?? 'Here is the reasoning.'
             }
             truth={truth}
+            source={
+              done === 'revealed' && aiExplain?.source === 'ai'
+                ? 'ai'
+                : done === 'revealed' && aiExplain?.source === 'loading'
+                  ? 'loading'
+                  : undefined
+            }
           />
           <div className="potd-actions">
             <button type="button" className="btn btn-ghost" onClick={() => navigate(`/learn/${lessonId}`)}>

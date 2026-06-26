@@ -196,7 +196,7 @@ users/{uid}/progress/{lessonId}
 | ID | Feature | Description |
 |----|---------|-------------|
 | FR-9.1 | Problem generation (templated) | AI fills parameters into a fixed set of problem templates (e.g. "n flips, P(exactly k heads)"). The AI chooses parameters and writes the prose; the **answer is computed by the app's own probability functions**, never by the model. This guarantees the course never runs dry without risking incorrect answers |
-| FR-9.2 | Wrong-answer explanation | AI explains a specific wrong answer in plain language based on what the learner actually did |
+| FR-9.2 | Wrong-answer explanation | AI explains a specific wrong answer in plain language based on what the learner actually did. **Implemented** for lesson problems and the Problem of the Day: on a resolved miss the client sends the problem, the learner's answer, and the **app-computed correct answer** (ground truth) to the server (`kind: 'explain'`); the model explains *why*, never asserting a different number. It only replaces the author's hand-written incorrect feedback when an AI backend is connected and the **AI explanations** toggle is on — otherwise the hand-written text stands (NFR-7 / FR-10.3) |
 | FR-9.3 | **Live dealer-coach (Arcade)** | In the **Arcade / Apply** surface (a sibling to the Sandbox), the Blackjack trainer's coach explains, in plain language, *why* the mathematically optimal play wins at each decision. The coach **narrates** the numbers the deterministic engine already produced (EV per action, the optimal action, dealer bust chance, true count) and **must not compute or contradict them** — the same "AI varies wording, the app owns the numbers" contract as FR-9.1 |
 
 ### Arcade / Apply — applied games (v1: Blackjack)
@@ -211,7 +211,7 @@ and the house edge "in the long run."
 | FR-9.3a | A deterministic engine (`src/lib/blackjack.ts`, peer to `probability.ts`) is the source of truth for **every** number: hand values, legal actions, dealer behavior (6-deck shoe, S17, blackjack 3:2), the **exact EV of hit/stand/double** from the current shoe composition, the **optimal action** (`argmax EV`), bust chances, and the Hi-Lo running/true count. The LLM never decides any of these |
 | FR-9.3b | **Predict-then-verify for decisions:** the learner chooses an action; the engine then reveals the EV-optimal action and the EV gap, and a lifetime **decision accuracy** grades play quality, not luck. The long-run house edge is made visible via a cumulative-net chart and a companion "Blackjack Edge" simulation |
 | FR-9.3c | The engine is validated by unit tests **and** a **Monte-Carlo cross-check** (`blackjack.test.ts`): simulated EVs converge to the engine's EVs within tolerance, and the optimal actions reproduce textbook basic strategy |
-| FR-9.3d | The coach call runs **server-side** in a Firebase callable (`functions/src/index.ts → explainBlackjackPlay`) holding the OpenAI key; the browser never sees a secret (same key-handling rule as the rest of Phase 2) |
+| FR-9.3d | The coach call runs **server-side** in a free Cloudflare Worker (`worker/coach.mjs`) holding the OpenAI key; the browser never sees a secret (no Blaze plan needed). The client (`src/lib/coachClient.ts`) POSTs to the Worker URL in `VITE_COACH_ENDPOINT`. The same endpoint serves the wrong-answer explanations (FR-9.2), routed by `kind` |
 | FR-9.3e | **AI-disabled / offline fallback (NFR-7, FR-10.3):** a settings toggle disables the AI coach, and whenever the callable is unavailable the client renders a **deterministic templated explanation** built from the same engine numbers (`src/lib/coach.ts`). The game and its coaching remain fully functional with AI off. The coach never blocks input |
 | FR-9.3f | Bankroll + lifetime decision-accuracy persist via the existing `Backend`/progress abstraction (`UserStats.arcade`) — no bespoke store |
 | FR-9.3g | Out of scope for v1 (hooks left in place): poker and other games, real money/purchases, multiplayer, split / insurance / surrender, and any "how to beat the casino" advice beyond explaining EV |
@@ -318,19 +318,20 @@ src/
   App.tsx
   main.tsx
 
-functions/                # Phase 2 only — Firebase Cloud Functions
-  src/
-    index.ts              # callable: explainBlackjackPlay (Arcade coach); generateProblem,
-                          #   explainWrongAnswer (planned). Narrates engine numbers only.
-  # OpenAI key stored via Firebase Functions secrets, never in client
+worker/                   # Phase 2 only — Cloudflare Worker (free, no Blaze plan)
+    coach.mjs             # endpoint: { kind, input } → { text }. kind 'blackjack' (Arcade
+                          #   coach) + 'explain' (wrong-answer feedback). Narrates app
+                          #   numbers only; OpenAI key in a Worker secret, never in client.
 ```
 
 > **Arcade / Apply (Phase 2):** the Blackjack engine + coach add
 > `src/lib/blackjack.ts` (deterministic engine + `blackjack.test.ts`),
 > `src/lib/coach.ts` (templated explanation / offline fallback),
-> `src/lib/coachClient.ts` (lazy callable invocation), `src/pages/ArcadePage.tsx`,
+> `src/lib/coachClient.ts` (server transport), `src/pages/ArcadePage.tsx`,
 > `src/components/BlackjackTable.tsx`, and the `src/simulations/BlackjackEdge.tsx` sim.
-> Bankroll + decision accuracy live on `UserStats.arcade`.
+> **Wrong-answer explanations (FR-9.2)** add `src/lib/explain.ts` + the `useExplainAI`
+> toggle, reusing the same Worker endpoint (`kind: 'explain'`). Bankroll + decision
+> accuracy live on `UserStats.arcade`.
 
 ### Routing
 

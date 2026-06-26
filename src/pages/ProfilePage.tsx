@@ -10,6 +10,7 @@ import { useProgress } from '../hooks/useProgress';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../hooks/useTheme';
 import { useUnlockAll } from '../hooks/useUnlockAll';
+import { useExplainAI } from '../hooks/useExplainAI';
 import { navigate } from '../lib/router';
 import LessonIcon, { LockIcon } from '../components/LessonIcon';
 import ProgressRing from '../components/ProgressRing';
@@ -47,6 +48,7 @@ export default function ProfilePage() {
   const { user, signOut, backendKind } = useAuth();
   const [theme, setTheme] = useTheme();
   const [unlockAll, setUnlockAll] = useUnlockAll();
+  const [explainAI, setExplainAI] = useExplainAI();
 
   if (!progress.loaded) {
     return <div className="center-note">Loading…</div>;
@@ -210,6 +212,20 @@ export default function ProfilePage() {
               <span className="unlock-text">
                 Free navigation
                 <span className="unlock-sub">Jump to any lesson without finishing earlier ones</span>
+              </span>
+            </label>
+            <label className="unlock-toggle pref-toggle">
+              <input
+                type="checkbox"
+                checked={explainAI}
+                onChange={(e) => setExplainAI(e.target.checked)}
+              />
+              <span className="unlock-track" aria-hidden="true" />
+              <span className="unlock-text">
+                AI explanations
+                <span className="unlock-sub">
+                  Tailor wrong-answer feedback with AI when connected (else uses the written hint)
+                </span>
               </span>
             </label>
           </div>

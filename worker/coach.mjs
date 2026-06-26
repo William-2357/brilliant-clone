@@ -1,15 +1,19 @@
 /**
- * Cloudflare Worker — "The Long Run" blackjack dealer-coach (Phase 2 AI).
+ * Cloudflare Worker — "The Long Run" AI helper (Phase 2 AI).
  *
  * This is the ONLY place that holds the OpenAI key and talks to the model; the
  * browser never sees a secret. It runs free on Cloudflare's Workers free tier —
- * NO Firebase Blaze plan required. It receives the numbers the deterministic
- * blackjack engine (`src/lib/blackjack.ts`) already computed and asks GPT to
- * NARRATE why the optimal play wins. It must never recompute or contradict them.
+ * NO Firebase Blaze plan required. One endpoint serves two tasks, routed by `kind`
+ * in the POST body:
+ *   - 'blackjack' → narrate why the Arcade engine's optimal play wins (it receives
+ *     the numbers `src/lib/blackjack.ts` already computed and must never recompute
+ *     or contradict them).
+ *   - 'explain'   → explain a wrong lesson / Problem-of-the-Day answer, treating the
+ *     app-computed correct answer as ground truth (it must never contradict it).
  *
- * The client (`src/lib/coachClient.ts`) degrades gracefully: on any failure it
- * falls back to the deterministic templated explanation (`src/lib/coach.ts`), so
- * the game and its coaching work with the AI off or this Worker unreachable.
+ * The client (`src/lib/coachClient.ts`) degrades gracefully: on any failure it falls
+ * back to the deterministic template / hand-written feedback, so the app works with
+ * the AI off or this Worker unreachable.
  *
  * Deploy (from the repo root):
  *   npm run coach:deploy                         # wrangler deploy -c worker/wrangler.jsonc
@@ -21,7 +25,7 @@
  * Local dev:  npm run coach:dev   (uses worker/.dev.vars for OPENAI_API_KEY)
  */
 
-const SYSTEM = [
+const BLACKJACK_SYSTEM = [
   'You are a concise, friendly blackjack coach inside a probability-and-statistics learning app.',
   'A deterministic engine has ALREADY computed every number you are given (expected values, the',
   'optimal action, dealer bust chance, bust-if-hit chance, true count). These numbers are the',
@@ -32,10 +36,22 @@ const SYSTEM = [
   'money-management advice. Do not mention that you are an AI or a language model.',
 ].join(' ');
 
+const EXPLAIN_SYSTEM = [
+  'You are a warm, encouraging probability & statistics tutor inside a learn-by-doing app.',
+  'A learner just answered a practice problem incorrectly. You are given the problem, the',
+  "learner's answer, the correct answer (ALREADY computed by the app — it is the source of",
+  "truth), and the author's hand-written hint. In 2-4 short, plain-language sentences, explain",
+  'where the learner most likely went wrong and how to think about it correctly so they can',
+  'reach the given correct answer. You MUST treat the provided correct answer as ground truth:',
+  'never state a different number, never say the learner was actually right, and never invent new',
+  'numbers. Be specific to this problem, encouraging, and concise. Use at most one short formula.',
+  'Do not mention that you are an AI or a language model.',
+].join(' ');
+
 const DEFAULT_MODEL = 'gpt-4o-mini';
-const MAX_BODY_BYTES = 4096; // the payload is a tiny game-state object; reject anything larger
+const MAX_BODY_BYTES = 8192; // tiny game-state / problem-state object; reject anything larger
 const OPENAI_TIMEOUT_MS = 12000;
-const MAX_TOKENS = 220;
+const MAX_TOKENS = 260;
 const ACTIONS = new Set(['hit', 'stand', 'double']);
 
 /** Parse the configured origin allowlist. Empty / "*" => allow all (browser CORS). */
@@ -72,8 +88,12 @@ function num(x, fallback = 0) {
   return typeof x === 'number' && Number.isFinite(x) ? x : fallback;
 }
 
-/** Validate + clamp the untrusted client payload into a known CoachInput shape. */
-function sanitizeInput(raw) {
+function str(x, max) {
+  return String(x ?? '').slice(0, max);
+}
+
+/** Validate + clamp the untrusted blackjack payload into a known CoachInput shape. */
+function sanitizeBlackjack(raw) {
   if (!raw || typeof raw !== 'object') return null;
   if (typeof raw.playerTotal !== 'number' || !Number.isFinite(raw.playerTotal)) return null;
   const ev = raw.ev && typeof raw.ev === 'object' ? raw.ev : {};
@@ -83,7 +103,7 @@ function sanitizeInput(raw) {
       : [],
     playerTotal: num(raw.playerTotal),
     playerSoft: Boolean(raw.playerSoft),
-    dealerUpcard: String(raw.dealerUpcard ?? '').slice(0, 3),
+    dealerUpcard: str(raw.dealerUpcard, 3),
     ev: {
       hit: num(ev.hit),
       stand: num(ev.stand),
@@ -97,7 +117,27 @@ function sanitizeInput(raw) {
   };
 }
 
-function buildPrompt(input) {
+/** Validate + clamp the untrusted wrong-answer payload into a known ExplainInput shape. */
+function sanitizeExplain(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const question = str(raw.question, 800);
+  const correctAnswer = str(raw.correctAnswer, 120);
+  if (!question || !correctAnswer) return null;
+  return {
+    surface: raw.surface === 'daily' ? 'daily' : 'lesson',
+    topic: str(raw.topic, 160),
+    question,
+    interaction: str(raw.interaction, 24),
+    unit: raw.unit ? str(raw.unit, 24) : undefined,
+    learnerAnswer: str(raw.learnerAnswer, 160),
+    correctAnswer,
+    tolerance:
+      typeof raw.tolerance === 'number' && Number.isFinite(raw.tolerance) ? raw.tolerance : undefined,
+    authorHint: str(raw.authorHint, 600),
+  };
+}
+
+function buildBlackjackPrompt(input) {
   const doubleEv = input.ev.double === null ? 'not allowed' : input.ev.double.toFixed(3);
   return [
     `Player hand: ${input.playerCards.join(', ')} (${input.playerSoft ? 'soft' : 'hard'} ${input.playerTotal}).`,
@@ -109,6 +149,20 @@ function buildPrompt(input) {
     `Player bust chance if hitting: ${(input.bustChanceIfHit * 100).toFixed(0)}%.`,
     `Hi-Lo true count: ${input.trueCount.toFixed(1)}.`,
     'Explain why the optimal action is best.',
+  ].join('\n');
+}
+
+function buildExplainPrompt(input) {
+  return [
+    `Topic: ${input.topic}.`,
+    `Problem: ${input.question}`,
+    `Interaction type: ${input.interaction}${input.unit ? `, answer unit: ${input.unit}` : ''}.`,
+    `The learner's answer: ${input.learnerAnswer}.`,
+    `The correct answer (ground truth): ${input.correctAnswer}${
+      input.tolerance != null ? ` (accepted within ±${input.tolerance})` : ''
+    }.`,
+    `Author's hint: ${input.authorHint}`,
+    'Explain where the learner went wrong and how to reach the correct answer.',
   ].join('\n');
 }
 
@@ -142,12 +196,18 @@ export default {
       return json({ error: 'origin not allowed' }, 403, cors);
     }
 
-    // Validate the client request (400) before checking server config (500).
+    // Validate the client request (400) before checking server config (500). One
+    // endpoint, two payload shapes, selected by `kind` (default 'blackjack').
     const body = await readLimitedJson(request, MAX_BODY_BYTES);
-    const input = sanitizeInput(body?.input);
+    const kind = body?.kind === 'explain' ? 'explain' : 'blackjack';
+    const input =
+      kind === 'explain' ? sanitizeExplain(body?.input) : sanitizeBlackjack(body?.input);
     if (!input) return json({ error: 'missing or malformed input' }, 400, cors);
 
     if (!env.OPENAI_API_KEY) return json({ error: 'OPENAI_API_KEY secret not set' }, 500, cors);
+
+    const system = kind === 'explain' ? EXPLAIN_SYSTEM : BLACKJACK_SYSTEM;
+    const prompt = kind === 'explain' ? buildExplainPrompt(input) : buildBlackjackPrompt(input);
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS);
@@ -163,8 +223,8 @@ export default {
           max_completion_tokens: MAX_TOKENS,
           temperature: 0.5,
           messages: [
-            { role: 'system', content: SYSTEM },
-            { role: 'user', content: buildPrompt(input) },
+            { role: 'system', content: system },
+            { role: 'user', content: prompt },
           ],
         }),
         signal: controller.signal,
