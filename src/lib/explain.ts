@@ -7,7 +7,7 @@
  * connected and the toggle is on; otherwise the hand-written text stands.
  *
  * This is the structured, serializable payload sent to the server (the same
- * `VITE_COACH_ENDPOINT` / callable the blackjack coach uses, routed by `kind`).
+ * `VITE_COACH_ENDPOINT` Worker the blackjack coach uses, routed by `kind`).
  */
 export interface ExplainInput {
   /** Where the problem came from, for tone/context. */

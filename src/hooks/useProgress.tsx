@@ -71,18 +71,38 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
       /* eslint-enable react-hooks/set-state-in-effect */
       return;
     }
-    Promise.all([backend.progress.load(user.uid), backend.progress.loadStats(user.uid)]).then(
-      ([map, loadedStats]) => {
-        if (!active) return;
-        allRef.current = map;
-        statsRef.current = loadedStats;
-        setAll(map);
-        setStats(loadedStats);
-        setLoaded(true);
-      },
-    );
+    let settled = false;
+    const finish = (map: ProgressMap, loadedStats: UserStats) => {
+      if (!active || settled) return;
+      settled = true;
+      allRef.current = map;
+      statsRef.current = loadedStats;
+      setAll(map);
+      setStats(loadedStats);
+      setLoaded(true);
+    };
+
+    Promise.all([backend.progress.load(user.uid), backend.progress.loadStats(user.uid)])
+      .then(([map, loadedStats]) => finish(map, loadedStats))
+      .catch((err) => {
+        // Never leave the app stuck on "Loading…" when the backend read fails
+        // (e.g. Firestore rules, missing database, App Check, or offline). Start
+        // empty and surface the real cause in the console instead of hanging.
+        console.error('Progress load failed — starting with empty progress.', err);
+        finish({}, emptyStats());
+      });
+
+    // Safety net for a backend that hangs without rejecting (e.g. offline retry).
+    const loadTimeout = setTimeout(() => {
+      if (!settled) {
+        console.warn('Progress load timed out after 10s — starting with empty progress.');
+        finish({}, emptyStats());
+      }
+    }, 10000);
+
     return () => {
       active = false;
+      clearTimeout(loadTimeout);
     };
   }, [user]);
 

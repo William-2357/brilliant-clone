@@ -20,11 +20,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = backend.auth.onChange((u) => {
-      setUser(u);
+    let unsub = () => {};
+    try {
+      unsub = backend.auth.onChange((u) => {
+        setUser(u);
+        setLoading(false);
+      });
+    } catch (err) {
+      // If auth init throws (e.g. bad Firebase config), don't hang on "Loading…" —
+      // fall through to the login screen and surface the cause.
+      console.error('Auth initialization failed:', err);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(false);
-    });
-    return unsub;
+    }
+    return () => unsub();
   }, []);
 
   const value = useMemo<AuthContextValue>(

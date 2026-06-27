@@ -212,7 +212,7 @@ and the house edge "in the long run."
 | FR-9.3b | **Predict-then-verify for decisions:** the learner chooses an action; the engine then reveals the EV-optimal action and the EV gap, and a lifetime **decision accuracy** grades play quality, not luck. The long-run house edge is made visible via a cumulative-net chart and a companion "Blackjack Edge" simulation |
 | FR-9.3c | The engine is validated by unit tests **and** a **Monte-Carlo cross-check** (`blackjack.test.ts`): simulated EVs converge to the engine's EVs within tolerance, and the optimal actions reproduce textbook basic strategy |
 | FR-9.3d | The coach call runs **server-side** in a free Cloudflare Worker (`worker/coach.mjs`) holding the OpenAI key; the browser never sees a secret (no Blaze plan needed). The client (`src/lib/coachClient.ts`) POSTs to the Worker URL in `VITE_COACH_ENDPOINT`. The same endpoint serves the wrong-answer explanations (FR-9.2), routed by `kind` |
-| FR-9.3e | **AI-disabled / offline fallback (NFR-7, FR-10.3):** a settings toggle disables the AI coach, and whenever the callable is unavailable the client renders a **deterministic templated explanation** built from the same engine numbers (`src/lib/coach.ts`). The game and its coaching remain fully functional with AI off. The coach never blocks input |
+| FR-9.3e | **AI-disabled / offline fallback (NFR-7, FR-10.3):** a settings toggle disables the AI coach, and whenever the Worker endpoint is unavailable the client renders a **deterministic templated explanation** built from the same engine numbers (`src/lib/coach.ts`). The game and its coaching remain fully functional with AI off. The coach never blocks input |
 | FR-9.3f | Bankroll + lifetime decision-accuracy persist via the existing `Backend`/progress abstraction (`UserStats.arcade`) — no bespoke store |
 | FR-9.3g | Out of scope for v1 (hooks left in place): poker and other games, real money/purchases, multiplayer, split / insurance / surrender, and any "how to beat the casino" advice beyond explaining EV |
 
@@ -277,11 +277,11 @@ A concept becomes eligible for review scheduling once its lesson is mastered. Mi
 | Simulations | HTML5 Canvas (manual math, no physics engine) |
 | Auth | Firebase Auth (email/password) |
 | Database | Firestore |
-| Phase 2 AI backend | **Firebase Cloud Functions** (callable, Auth-guarded) — the only place that holds the OpenAI key and calls the model |
-| Phase 2 AI | OpenAI API (invoked server-side from Functions, never the browser) |
-| Deployment | Firebase Hosting + Functions (single platform) |
+| Phase 2 AI backend | **Cloudflare Worker** (free tier, no Blaze plan) — the only place that holds the OpenAI key and calls the model |
+| Phase 2 AI | OpenAI API (invoked server-side from the Worker, never the browser) |
+| Deployment | Firebase Hosting (site) + Cloudflare Workers (AI endpoint) |
 
-> **AI key handling:** The OpenAI API key lives in Firebase Functions config/secrets, never in the client bundle. The client invokes callable functions (`generateProblem`, `explainWrongAnswer`); answer computation via the app's owned probability functions runs inside the function, next to the model call. **AI-disabled toggle (NFR-7/FR-10.3):** the client simply does not call these functions — the entire MVP path is client + Firestore only and is unaffected.
+> **AI key handling:** The OpenAI API key lives in a Cloudflare Worker secret, never in the client bundle (anything `VITE_*` ships to the browser). The client (`src/lib/coachClient.ts`) POSTs structured state to the Worker at `VITE_COACH_ENDPOINT`, routed by `kind` (`'blackjack'` = dealer-coach, `'explain'` = wrong-answer feedback); the app's owned functions compute every answer/EV. **AI-disabled (NFR-7/FR-10.3):** with no endpoint configured (or the toggle off) the client calls nothing — the entire MVP path is client + Firestore only and is unaffected.
 
 ### File Structure
 

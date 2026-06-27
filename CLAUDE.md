@@ -24,13 +24,16 @@ rather than decoration.
 
 ## Hard rules
 
-- **AI is optional and additive — never the source of truth.** The only AI in the app
-  is the Arcade's **dealer-coach**, which merely *narrates* numbers the deterministic
-  engine already computed; it never decides answers, grading, EVs, or game outcomes.
-  The app and its coaching stay fully functional with AI disabled or unreachable (it
-  falls back to a deterministic templated explanation). Never let an LLM compute a
-  lesson answer, an EV, or a grade. The model call is **server-side only** — the OpenAI
-  key lives in the Cloudflare Worker (`worker/`), never in the client bundle.
+- **AI is optional and additive — never the source of truth.** Two optional AI helpers
+  exist: the Arcade's **dealer-coach** and **wrong-answer explanations** (lessons + the
+  Problem of the Day). Both only *narrate/explain* numbers the deterministic engine
+  already computed — the coach narrates the EVs/optimal play, the explainer is handed the
+  app-computed correct answer as ground truth. Neither decides answers, grading, EVs, or
+  game outcomes. With AI disabled or unreachable the app stays fully functional, falling
+  back to the deterministic blackjack template / hand-written feedback. Never let an LLM
+  compute a lesson answer, an EV, or a grade. The model call is **server-side only** — the
+  OpenAI key lives in the Cloudflare Worker (`worker/`), never in the client bundle; the
+  client reaches it via `VITE_COACH_ENDPOINT`, routed by `kind` (`'blackjack'`/`'explain'`).
 - **`src/lib/probability.ts` (lessons) and `src/lib/blackjack.ts` (Arcade) are the
   single source of truth for every answer.** Answers/EVs are computed by these
   functions, never hand-typed, and simulations animate *toward* those same values. If
@@ -81,7 +84,8 @@ src/
     probability.ts      # owned probability fns — SOURCE OF TRUTH for lesson answers
     blackjack.ts        # deterministic blackjack engine (EV/optimal/count) — Arcade truth
     coach.ts            # dealer-coach templated explanation (offline fallback + AI grounding)
-    coachClient.ts      # timeout-guarded coach call (Worker endpoint → callable fallback)
+    explain.ts          # wrong-answer explanation payload (lessons + Problem of the Day)
+    coachClient.ts      # AI transport: POSTs { kind, input } to the Worker (VITE_COACH_ENDPOINT)
     answer.ts           # parse typed answers (decimals/fractions) + per-unit hints
     rng.ts              # seeded PRNG (mulberry32) + helpers for question generation
     simSpeed.ts         # global animation-speed multiplier (read inside rAF loops)
@@ -99,13 +103,14 @@ src/
                         #   ActivityHeatmap, ProblemOfTheDay, SpeedControl, BlackjackTable
                         #   (the Arcade game), AuthGuard, ProfileMenu, LessonIcon, ...
   hooks/              # useAuth, useProgress (streaks + daily activity + arcade),
-                      #   useUnlockAll, useTheme, useCoachAI
+                      #   useUnlockAll, useTheme, useCoachAI, useExplainAI
   store/progress.ts   # pure logic: cleared/mastery, unlock state, next-step, streak math
   pages/              # LoginPage, HomePage, CoursePage, UnitPage, LessonPage, SandboxPage,
                       #   ArcadePage, ProblemPage, SimulationPage, TestPage, ProfilePage
   types/lesson.ts     # content model types
 
-worker/               # Phase-2 AI backend — Cloudflare Worker (free, no Blaze); holds the key
+worker/               # Phase-2 AI backend — Cloudflare Worker (free, no Blaze) holding the OpenAI
+                      #   key; one endpoint serves the coach + wrong-answer explanations (by `kind`)
 scripts/genloop/      # offline generator that authors content/generated/**
 ```
 

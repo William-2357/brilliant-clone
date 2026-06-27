@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "preview": "vite preview",
+    "brainlift:pdf": "bash scripts/build-brainlift-pdf.sh",
     "genloop": "tsx scripts/genloop/run.ts",
     "smoke": "tsx scripts/smoke-content.ts",
     "coach:dev": "wrangler dev -c worker/wrangler.jsonc",
