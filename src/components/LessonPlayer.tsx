@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Lesson, LessonStep } from '../types/lesson';
+import type { Lesson, LessonStep, PreTestRecord } from '../types/lesson';
 import { lessons, gradableSteps } from '../content/lessons';
 import { generateProblem } from '../content/problemTemplates';
 import { hashString } from '../lib/rng';
-import { recommendNext, allQuestionsResolved } from '../store/progress';
+import { recommendNext, allQuestionsResolved, isCleared, supportLevelFor } from '../store/progress';
 import { useProgress } from '../hooks/useProgress';
 import { useExplainAI } from '../hooks/useExplainAI';
 import { simulations } from '../simulations';
 import { isCorrect } from '../lib/probability';
+import { deriveWorked, canonicalWorked } from '../lib/worked';
 import { parseNumericInput, answerHint } from '../lib/answer';
 import { fetchAiExplanation, aiConfigured } from '../lib/coachClient';
 import type { ExplainInput } from '../lib/explain';
@@ -18,6 +19,8 @@ import CompletionScreen from './CompletionScreen';
 import LessonReview from './LessonReview';
 import QuestionBar from './QuestionBar';
 import LectureContent from './LectureContent';
+import WorkedExample from './WorkedExample';
+import PretestCard from './PretestCard';
 import OrderItems from './OrderItems';
 import DrawDistribution from './DrawDistribution';
 import PredictScale from './PredictScale';
@@ -61,6 +64,8 @@ export default function LessonPlayer({ lesson }: Props) {
   const [seed, setSeed] = useState<number>(() => progress.get(lesson.id)?.seed ?? hashString(lesson.id));
   const [attempt, setAttempt] = useState<number>(() => progress.get(lesson.id)?.attempt ?? 0);
   const [retry, setRetry] = useState(0);
+  // Pretesting: dismissed for this mount once the learner commits/skips the cold guess.
+  const [pretestDone, setPretestDone] = useState(false);
 
   // AI wrong-answer explanation (replaces the hand-written feedback on a final miss
   // when an AI backend is connected + the toggle is on; falls back otherwise).
@@ -85,6 +90,7 @@ export default function LessonPlayer({ lesson }: Props) {
     setCompleted(allQuestionsResolved(lesson, p));
     setReviewing(false);
     setMilestone('');
+    setPretestDone(false);
     /* eslint-enable react-hooks/set-state-in-effect */
     resetStepUi();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -95,7 +101,6 @@ export default function LessonPlayer({ lesson }: Props) {
     setGuess('');
     setInputError('');
     setShowReview(false);
-    setShowLecture(false);
     setCorrect(false);
     setResolved(false);
     setRetry(0);
@@ -116,6 +121,30 @@ export default function LessonPlayer({ lesson }: Props) {
     () => (baseStep ? generateProblem(lesson.id, baseStep, seed, attempt, retry) : baseStep),
     [lesson.id, baseStep, seed, attempt, retry],
   );
+
+  // Fading scaffolding (FR-11.4): a never-cleared lesson on its first attempt is
+  // 'guided' (lecture auto-opened + a worked example on the first problem); once it
+  // has been cleared at least once — or is being replayed — support fades and
+  // problems are presented cold. Mixed Practice is always faded (no lecture there).
+  const firstProblemId = useMemo(() => lesson.steps.find((s) => s.type === 'problem')?.id, [lesson]);
+  const supportProgress = progress.get(lesson.id);
+  const guided =
+    (supportProgress?.timesCleared ?? 0) === 0 &&
+    (supportProgress?.attempt ?? 0) === 0 &&
+    !isCleared(supportProgress);
+
+  // Pretesting (errorful generation): on the first-ever visit, capture one cold
+  // guess on a representative problem before any teaching. A distinct seed keeps
+  // the pretest instance different from the graded problems; only numeric/slider
+  // problems make a clean pretest (others fall through and skip it).
+  const pretestBase = useMemo(() => lesson.steps.find((s) => s.type === 'problem'), [lesson]);
+  const pretestStep = useMemo(() => {
+    if (!pretestBase) return null;
+    const gen = generateProblem(lesson.id, pretestBase, (seed ^ 0x5f3759df) >>> 0, attempt, 0);
+    const it = gen.interaction ?? 'numeric';
+    return it === 'numeric' || it === 'slider' ? gen : null;
+  }, [lesson.id, pretestBase, seed, attempt]);
+  const needsPretest = guided && !!pretestStep && !supportProgress?.preTest && !pretestDone;
 
   // Seed the order/draw interaction state whenever the visible (generated) step changes.
   useEffect(() => {
@@ -138,6 +167,14 @@ export default function LessonPlayer({ lesson }: Props) {
         : [],
     );
     /* eslint-enable react-hooks/set-state-in-effect */
+  }, [step]);
+
+  // The lecture stays collapsed by default on every problem; the learner opens it on
+  // demand via the "Review lecture" toggle (or the worked-example "Open the full
+  // lecture" link). Reset to hidden whenever the visible step changes. FR-11.4.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setShowLecture(false);
   }, [step]);
 
   function goToStep(idx: number) {
@@ -309,6 +346,24 @@ export default function LessonPlayer({ lesson }: Props) {
     }
   }
 
+  /** Store the pretest guess (or null when skipped) and proceed into the lesson. */
+  function recordPreTestNow(guess: number | null) {
+    if (pretestStep) {
+      const record: PreTestRecord = {
+        stepId: pretestStep.id,
+        question: pretestStep.question
+          ? `${pretestStep.body} ${pretestStep.question}`
+          : pretestStep.body,
+        guess,
+        answer: pretestStep.answer ?? 0,
+        unit: pretestStep.unit,
+        at: Date.now(),
+      };
+      progress.recordPreTest(lesson, record);
+    }
+    setPretestDone(true);
+  }
+
   function retryLesson() {
     setReviewing(false);
     progress.resetLessonResults(lesson);
@@ -351,6 +406,25 @@ export default function LessonPlayer({ lesson }: Props) {
     );
   }
 
+  // Pretest gate: on the first visit, the cold guess comes before the concept step.
+  if (needsPretest && pretestStep) {
+    return (
+      <div className="player">
+        <div className="player-top">
+          <button type="button" className="back-link" onClick={() => navigate('/learn')}>
+            ← Course
+          </button>
+        </div>
+        <PretestCard
+          step={pretestStep}
+          lessonTitle={lesson.title}
+          onSubmit={(g) => recordPreTestNow(g)}
+          onSkip={() => recordPreTestNow(null)}
+        />
+      </div>
+    );
+  }
+
   const Sim = step.simulation ? simulations[step.simulation] : null;
   const problems = gradableSteps(lesson);
   const lessonProgress = progress.get(lesson.id);
@@ -361,6 +435,18 @@ export default function LessonPlayer({ lesson }: Props) {
 
   const stepLabel = step.type === 'concept' ? 'Concept' : 'Problem';
   const interaction = step.interaction ?? 'numeric';
+  const isFirstProblem = step.type === 'problem' && step.id === firstProblemId;
+
+  // Worked → completion → full fading (FR-11.4): a fixed worked example to study on
+  // the first problem, a completion problem (own instance, last line blanked) on the
+  // second, then cold. `ordinal` is the problem's place among the gradable steps.
+  const ordinal = problems.findIndex((p) => p.id === step.id);
+  const canonical = step.type === 'problem' ? canonicalWorked(step.simulation) : null;
+  const derivedWorked = step.type === 'problem' ? deriveWorked(step) : null;
+  const supportLevel = supportLevelFor(guided, ordinal, {
+    worked: !!canonical,
+    completion: !!derivedWorked,
+  });
   const showTruth = correct || isFinalMiss;
   let truthLine: string | undefined;
   if (showTruth) {
@@ -506,6 +592,47 @@ export default function LessonPlayer({ lesson }: Props) {
                     ? 'Commit a prediction, then run the simulation to check it. You get two tries.'
                     : 'One try left — think it through and commit your answer; the simulation reveals the result this time.'}
                 </p>
+
+                {supportLevel === 'worked' && canonical && (
+                  <div className="scaffold-worked">
+                    <WorkedExample example={canonical} />
+                    <p className="scaffold-text">
+                      Study the example above, then solve your own below.
+                    </p>
+                    {conceptStep && (
+                      <button
+                        type="button"
+                        className="scaffold-link"
+                        onClick={() => setShowLecture(true)}
+                      >
+                        Open the full lecture →
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {supportLevel === 'completion' && derivedWorked && (
+                  <div className="scaffold-worked">
+                    <WorkedExample example={derivedWorked} blankLast />
+                    <p className="scaffold-text">
+                      The setup is done — work out the final value and enter it below.
+                    </p>
+                  </div>
+                )}
+
+                {guided && isFirstProblem && supportLevel === 'full' && conceptStep && (
+                  <div className="scaffold-hint" role="note">
+                    <span className="scaffold-tag">Guided example</span>
+                    <p className="scaffold-text">{conceptStep.body}</p>
+                    <button
+                      type="button"
+                      className="scaffold-link"
+                      onClick={() => setShowLecture(true)}
+                    >
+                      Open the full lecture →
+                    </button>
+                  </div>
+                )}
 
                 {interaction === 'numeric' && (
                   <>

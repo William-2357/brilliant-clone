@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { backend } from '../lib/backend';
 import type { ProgressMap, UserStats } from '../lib/storage';
 import { emptyStats, emptyArcade, ARCADE_STARTING_BANKROLL } from '../lib/storage';
-import type { Lesson, LessonProgress, LessonStep, ProblemResult } from '../types/lesson';
+import type { Lesson, LessonProgress, LessonStep, PreTestRecord, ProblemResult } from '../types/lesson';
 import { useAuth } from './useAuth';
 import {
   computeCleared,
@@ -12,6 +12,7 @@ import {
   recordActiveDay,
   bumpDailyActivity,
 } from '../store/progress';
+import { scheduleAfterReview } from '../store/review';
 
 interface RecordResult {
   progress: LessonProgress;
@@ -33,6 +34,18 @@ interface ProgressContextValue {
   resetLessonResults(lesson: Lesson): void;
   /** Mark today's Problem of the Day as solved — advances the daily streak. */
   recordPotdSolved(): void;
+  /**
+   * Store the learner's pretest guess for a lesson (pretesting). Captured once on
+   * the first visit, before any teaching; never affects mastery. Powers the
+   * intuition-vs-reality reveal on the completion screen.
+   */
+  recordPreTest(lesson: Lesson, record: PreTestRecord): void;
+  /**
+   * Record one Mixed Practice review of a mastered concept (spaced repetition,
+   * FR-11.1): advance the concept's interval on a correct answer, reset it on a
+   * wrong one. Persists on `UserStats.review`.
+   */
+  recordReview(conceptId: string, correct: boolean): void;
   /** Arcade: record one graded decision (whether it matched the EV-optimal play). */
   recordArcadeDecision(wasOptimal: boolean): void;
   /** Arcade: persist a settled hand — new bankroll and net play-chip change. */
@@ -174,7 +187,11 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
         const wasCleared = prev.cleared;
         candidate.mastered = masteredNow;
         candidate.cleared = clearedNow;
-        if (clearedNow && !wasCleared) candidate.completedAt = Date.now();
+        if (clearedNow && !wasCleared) {
+          candidate.completedAt = Date.now();
+          // Count this clear so scaffolding can fade on the next visit (FR-11.4).
+          candidate.timesCleared = (prev.timesCleared ?? 0) + 1;
+        }
         persist(lesson.id, candidate);
         return {
           progress: candidate,
@@ -189,6 +206,21 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
         // if today is already counted, so a same-day re-solve won't double-advance.
         const now = Date.now();
         commitStats(bumpDailyActivity(recordActiveDay(statsRef.current, now), now, 1));
+      },
+      recordPreTest: (lesson, record) => {
+        const prev = allRef.current[lesson.id] ?? initialProgress(lesson.steps[0]?.id ?? '');
+        // Pretest is teaching-prep, not grading: only the preTest field changes.
+        persist(lesson.id, { ...prev, preTest: record, lastVisited: Date.now() });
+      },
+      recordReview: (conceptId, correct) => {
+        // Re-schedule the concept (advance on correct, reset on wrong) and count
+        // the attempt toward today's activity heatmap. Both ride commitStats →
+        // backend.progress.saveStats, exactly like the Arcade/PotD recorders.
+        const now = Date.now();
+        const prev = statsRef.current;
+        const review = { ...(prev.review ?? {}) };
+        review[conceptId] = scheduleAfterReview(review[conceptId], correct, now);
+        commitStats(bumpDailyActivity({ ...prev, review }, now, 1));
       },
       recordArcadeDecision: (wasOptimal) => {
         const prev = statsRef.current;
@@ -234,6 +266,10 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
           seed: prev?.seed ?? fresh.seed,
           attempt: (prev?.attempt ?? 0) + 1,
           attempts: prev?.attempts ?? 0,
+          // Preserve the lifetime clear count so scaffolding stays faded on replay (FR-11.4).
+          timesCleared: prev?.timesCleared ?? 0,
+          // Keep the first-visit pretest record so the intuition reveal survives replays.
+          preTest: prev?.preTest ?? null,
           lastVisited: Date.now(),
         });
       },

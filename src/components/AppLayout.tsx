@@ -4,6 +4,7 @@ import type { CourseSection } from '../types/lesson';
 import type { ProgressMap } from '../lib/storage';
 import { lessons, sections, finalTest } from '../content/lessons';
 import { lessonState, sectionState, allLessonsCleared } from '../store/progress';
+import { dueCount } from '../store/review';
 import { useProgress } from '../hooks/useProgress';
 import { useUnlockAll } from '../hooks/useUnlockAll';
 import { navigate, currentPath } from '../lib/router';
@@ -106,6 +107,7 @@ export default function AppLayout({ activeLessonId, children }: Props) {
   }
 
   const testUnlocked = unlockAll || allLessonsCleared(lessons, progress.all);
+  const reviewsDue = dueCount(progress.stats, lessons, progress.all, new Date().getTime());
 
   return (
     <div className={`layout ${navOpen ? 'nav-open' : ''}`}>
@@ -161,6 +163,18 @@ export default function AppLayout({ activeLessonId, children }: Props) {
           onClick={() => go('/arcade')}
         >
           Arcade
+        </button>
+        <button
+          type="button"
+          className={`nav-home nav-home-badged ${path === '/practice' ? 'active' : ''}`}
+          onClick={() => go('/practice')}
+        >
+          Mixed Practice
+          {reviewsDue > 0 && (
+            <span className="nav-due-badge" aria-label={`${reviewsDue} due`}>
+              {reviewsDue}
+            </span>
+          )}
         </button>
 
         <p className="sidebar-label">Units</p>

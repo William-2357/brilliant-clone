@@ -11,6 +11,7 @@ import UnitPage from './pages/UnitPage';
 import LessonPage from './pages/LessonPage';
 import SandboxPage from './pages/SandboxPage';
 import ArcadePage from './pages/ArcadePage';
+import MixedPracticePage from './pages/MixedPracticePage';
 import ProfilePage from './pages/ProfilePage';
 import TestPage from './pages/TestPage';
 import ProblemPage from './pages/ProblemPage';
@@ -86,6 +87,16 @@ function Routes() {
       <AuthGuard>
         <AppLayout activeLessonId={null}>
           <ArcadePage />
+        </AppLayout>
+      </AuthGuard>
+    );
+  }
+
+  if (path === '/practice') {
+    return (
+      <AuthGuard>
+        <AppLayout activeLessonId={null}>
+          <MixedPracticePage />
         </AppLayout>
       </AuthGuard>
     );

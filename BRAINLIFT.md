@@ -18,8 +18,9 @@ gap between intuition and reality becomes the lesson. AI is layered on top only 
 *explain* numbers a deterministic engine already owns — never to compute them.
 
 This BrainLift exists to make that thesis legible: *why* predict-then-verify, *why*
-withhold the answer, *why* keep the LLM away from the arithmetic, and *why* one subject
-instead of a catalog.
+withhold the answer, *why* keep the LLM away from the arithmetic, *why* one subject
+instead of a catalog, and *why* a learning-science layer — spaced, interleaved,
+scaffolded, and pre-tested — is what finally makes it *stick*.
 
 ### In Scope
 
@@ -28,7 +29,8 @@ instead of a catalog.
   "grade the decision, not the luck" in the Arcade).
 - The **learning science** that justifies the friction the app deliberately adds
   (retrieval practice, desirable difficulties, productive failure, the generation
-  effect, mastery learning, spaced/interleaved review).
+  effect, mastery learning, spaced & interleaved review, fading worked-example
+  scaffolds, and pretesting).
 - The **AI architecture stance**: deterministic source of truth (`probability.ts`,
   `blackjack.ts`) + an *optional, additive* LLM narrator behind a server-side Worker.
 - **Probability as a domain** — specifically *why* it is the ideal subject for this
@@ -142,63 +144,7 @@ result that offloading exact computation to deterministic code beats letting the
 the math — [PAL: Program-Aided Language Models](https://arxiv.org/abs/2211.10435)
 (Gao et al., 2023).
 
-### SPOV 4 — One subject taught deeply beats a catalog of everything.
-
-Brilliant's brand *is* breadth — math, science, CS, dozens of courses. The Long Run
-deliberately refuses that. It teaches **probability and statistics only**: 36 lessons
-across 8 sections, plus a Final Test and an applied Arcade, all orbiting a single mental
-model — *what happens "in the long run."* Depth is the strategy, not a limitation.
-
-**Elaboration:** A single deep spine lets every artifact reinforce the *same* ideas.
-Long-run frequency in Lesson 1 is the same intuition that makes the Galton board's bell
-curve inevitable, that defines expected value, that explains why the house edge is
-unbeatable at blackjack over 10,000 hands. A breadth catalog can't do this — its lessons
-are islands. Coherence compounds: by the Arcade, the learner isn't meeting EV for the
-first time, they're *applying* a concept the whole course has been building toward. The
-product name is the thesis.
-
-**In the build:** `content/sections.ts` defines the 8-unit spine; the Arcade's
-"Blackjack Edge" sim auto-plays tens of thousands of perfect hands so the ~1% house edge
-becomes *visible* as cumulative net drifts below zero — the literal payoff of "the long
-run." Mastery-gated sequential unlock keeps the spine intact.
-
-**Grounding:** [mastery learning](https://en.wikipedia.org/wiki/Mastery_learning) and
-Bloom's [2-sigma problem](https://journals.sagepub.com/doi/10.3102/0013189X013006004)
-(Bloom, 1984); the active-learning meta-analysis
-[Freeman et al. (2014, PNAS)](https://www.pnas.org/doi/10.1073/pnas.1319030111)
-(active learning cut STEM failure rates and raised exam scores ~0.47 SD); the
-[PhET](https://phet.colorado.edu/en/research) lineage of deeply-designed interactive sims
-per concept.
-
-### SPOV 5 — Generated-from-templates problems beat fixed problem banks, because mastery means surviving *variation*, not recognizing an instance.
-
-If a learner can memorize "the answer is 7," you have taught trivia, not probability. A
-fixed bank invites exactly this: enough repetition and the learner pattern-matches the
-*question* to a stored *answer* without ever running the reasoning. The Long Run generates
-each problem from a parameterized template that **recomputes the answer from
-`probability.ts`** every time, and *cycles* to new numbers/objects on retry and replay.
-
-**Elaboration:** Varying the surface (numbers, scenarios, and even the *form* — a
-probability one time, "about how many of N…" the next) forces the learner to abstract the
-underlying schema instead of caching a result. The count-vs-probability alternation isn't
-cosmetic: natural-frequency phrasing makes probabilistic (especially Bayesian) reasoning
-dramatically more accessible, so alternating trains both representations. Because the
-answer is always derived programmatically, variation never risks a wrong key.
-
-**In the build:** `content/problemTemplates.ts` — each slot's `build(rng)` returns a
-concrete step with the answer recomputed from the source-of-truth functions; generation
-is seeded by `seed × attempt × retry` so resume reproduces a question while retry/replay
-*cycle* to a different one. Numeric problems alternate probability/fraction and **count**
-phrasings.
-
-**Grounding:** [variability of practice](https://en.wikipedia.org/wiki/Motor_learning)
-/ schema theory (Schmidt, 1975); retrieval-vs-recognition (PRD **FR-11.5**, "recall a
-value, not recognize from options"); natural frequencies —
-[Gigerenzer & Hoffrage (1995)](https://psycnet.apa.org/doi/10.1037/0033-295X.102.4.684)
-raised correct Bayesian inferences from ~16% to ~46% just by switching the *format* to
-counts.
-
-### SPOV 6 — In a game of chance, grade the *decision*, not the *outcome*.
+### SPOV 4 — In a game of chance, grade the *decision*, not the *outcome*.
 
 Every casino game, and most of life, mixes skill with luck — and humans are terrible at
 separating them. We praise the player who hit on 16 and got a 5; we blame the one who
@@ -225,31 +171,75 @@ made experiential; outcome bias and the
 heuristics-and-biases program (Tversky & Kahneman,
 [1974](https://www.science.org/doi/10.1126/science.185.4157.1124)).
 
-### SPOV 7 — Don't let the streak be bought with grinding. Protect the habit metric from the learning metric.
+### SPOV 5 — Review the *concept*, not the *lesson* — spaced and interleaved, and graded by honest recall, not auto-checking.
 
-Standard gamification ties the streak to "do *any* activity today," which quietly turns
-the streak into something you *farm* — and turns lessons into streak fuel rather than
-learning. The Long Run decouples them on purpose: the **daily streak advances only by
-solving the Problem of the Day.** Lessons and the Final Test feed the *activity heatmap*
-(a record of effort) but never move the streak.
+Most apps "review" by letting you replay a lesson you just finished — the same lesson,
+blocked together, immediately, when it's easiest. That is the single worst schedule:
+massed, blocked, and instant. The Long Run's **Mixed Practice** inverts all three. Once a
+lesson is *cleared*, its concept joins a rotation that **interleaves** problems across
+*all* cleared lessons (no two consecutive from the same topic) and **spaces** each concept
+on an expanding 1 → 3 → 7 → 14-day ladder. And because a review you can retry until you're
+right is a review you can fake, grading is **Anki-style self-rating** — recall, reveal,
+then "Got it" / "Missed it" — never auto-grading.
 
-**Elaboration:** A streak should mean one specific, honest thing — "you showed up and did
-the daily reasoning rep" — not "you opened the app." Collapsing every action into one
-counter corrupts the signal and invites extrinsic-reward gaming, which research says can
-*crowd out* the intrinsic motivation (the satisfaction of mastery) you actually want to
-cultivate. Keeping the streak scarce, and keeping lesson feedback explanatory rather than
-score-y, supports competence and autonomy instead of point-chasing.
+**Elaboration:** Interleaving makes the learner first decide *which* approach a problem
+needs — the hard, transferable skill — instead of mechanically applying the lesson they're
+sitting in. Spacing exploits the forgetting curve: a successful recall at a longer gap is a
+stronger rep than a massed one. Self-grading is the integrity mechanism. Auto-grading a
+review you can retry rewards guess-until-correct, which silently corrupts the schedule;
+handing the learner the honest call — and resetting a "Missed it" concept to the 1-day rung
+— is exactly how flashcard systems keep spacing meaningful.
 
-**In the build:** `recordActiveDay` is called *only* by the Problem of the Day (same day
-= no-op, next day = +1, gap = reset); the activity heatmap tallies *every* resolved
-problem separately; feedback "explains, not grades" (README persona; "feedback that
-explains, not just grades").
+**In the build:** `/practice` (`MixedPracticePage`; engine in `content/mixedPractice.ts`)
+builds a six-problem session, prioritizing **due** concepts and ordering them so no two
+neighbors share a lesson; `store/review.ts` is the pure ladder (`scheduleAfterReview`,
+`dueConcepts`, `reviewSummary`) persisted on `UserStats.review`; `PracticeProblem` runs the
+reveal-then-self-rate flow; a **due badge** and a memory-strength readout surface on
+Home/Profile. PRD **FR-11.1 / FR-11.2**.
 
-**Grounding:** [Self-Determination Theory](https://selfdeterminationtheory.org/)
-(Deci & Ryan) — autonomy/competence/relatedness drive durable motivation; the
-[overjustification effect](https://en.wikipedia.org/wiki/Overjustification_effect) and
-[Deci, Koestner & Ryan (1999)](https://psycnet.apa.org/doi/10.1037/0033-2909.125.6.627),
-whose meta-analysis found tangible extrinsic rewards undermine intrinsic motivation.
+**Grounding:** the [spacing effect](https://en.wikipedia.org/wiki/Spacing_effect) —
+[Cepeda, Pashler, Vul, Wixted & Rohrer (2006)](https://pubmed.ncbi.nlm.nih.gov/16719566/),
+a meta-analysis of 839 assessments across 317 experiments mapping how the spacing advantage grows with the gap between sessions; interleaving
+— [Rohrer & Taylor (2007)](https://link.springer.com/article/10.1007/s11251-007-9015-8),
+"shuffling" math problems raised later test scores despite feeling harder; and the testing
+effect (Roediger & Karpicke) as the reason self-graded *recall* beats passive re-reading.
+
+### SPOV 6 — Start with a fully worked example and a guess you're *allowed to fail* — then fade the help fast.
+
+Two opposite failure modes haunt practice apps: drop novices into cold problems (they
+flounder, working memory overloaded) or coddle everyone with hints forever (experts get
+bored and stop thinking). The Long Run threads both. A brand-new lesson opens with a
+**pretest** — one cold guess *before any teaching*, ungraded, that you're *encouraged* to
+get wrong — and then teaches against that gap. Its first problems are scaffolded as a
+**worked → completion → full** progression (study a solved example, then finish a
+half-worked one, then go cold), and the scaffold **disappears** the moment you've cleared
+the lesson once.
+
+**Elaboration:** Pretesting (errorful generation) primes learning — a wrong guess you
+produced yourself opens a "slot" the correct answer snaps into, and the surprise focuses
+attention, *even though the guess was wrong*. Worked examples are the right onramp for
+novices (studying a solution costs far less working memory than searching for one), and
+*backward fading* — blanking the last step first — hands control back one step at a time.
+The non-obvious part is the *fade itself*: the worked-example advantage **reverses** as
+competence grows (the expertise-reversal effect), so support that rescues a beginner
+actively wastes an expert's effort. Tying the fade to `timesCleared` (and never scaffolding
+Mixed Practice) makes help appear exactly when it helps and vanish when it doesn't.
+
+**In the build:** a first-visit `PretestCard` writes `LessonProgress.preTest`, revealed as
+an intuition-vs-reality panel on the completion screen (**FR-11.6**); `lib/worked.ts`
+(`canonicalWorked` / `deriveWorked`) builds the term-by-term breakdown from a step's own
+`simConfig`/`answer`, so it is always correct and covers templated *and* pre-generated
+problems; the pure `supportLevelFor` in `store/progress.ts` picks worked → completion →
+full by problem ordinal while `timesCleared === 0`, then full thereafter (**FR-11.4**).
+
+**Grounding:** the pretesting effect —
+[Richland, Kornell & Kao (2009)](https://psycnet.apa.org/doi/10.1037/a0015872) and Kornell,
+Hays & Bjork (2009): unsuccessful retrieval *before* study enhances later learning; the
+[worked-example effect](https://en.wikipedia.org/wiki/Worked-example_effect)
+(Sweller & Cooper, 1985) with the **completion** and **guidance-fading** effects
+(Van Merriënboer; Renkl & Atkinson, 2003); and the
+[expertise-reversal effect](https://en.wikipedia.org/wiki/Expertise_reversal_effect)
+(Kalyuga, Ayres, Chandler & Sweller, 2003).
 
 ---
 
@@ -260,14 +250,15 @@ whose meta-analysis found tangible extrinsic rewards undermine intrinsic motivat
 
 ### Carl Hendrick
 - **Who:** Professor of Learning Science at Academica University of Applied Sciences
-  (Amsterdam); PhD in education from King's College London; taught English in an
-  inner-city London secondary school for 18 years before turning to research. Member of
-  the UNESCO International Bureau of Education's Science of Learning editorial board.
+  (Amsterdam); PhD in education from King's College London; began as an English teacher in
+  an inner-city London school and taught in secondary classrooms for 18 years before
+  turning to research. Member of the UNESCO International Bureau of Education's Science of
+  Learning editorial board.
 - **Focus:** Bridging the gap between cognitive-science research and what actually happens
   in classrooms — retrieval practice, spacing, desirable difficulties, explicit
   instruction, and the "instructional illusions" that make ineffective teaching *feel*
-  effective. Co-author of *How Learning Happens* and *How Teaching Happens* (with Paul
-  Kirschner) and *Instructional Illusions*.
+  effective. Co-author of *How Learning Happens* (with Paul Kirschner), *How Teaching
+  Happens* (with Kirschner and Jim Heal), and *Instructional Illusions*.
 - **Why Follow:** He is the single best synthesizer of the exact research this BrainLift
   rests on — Bjork's desirable difficulties, Roediger & Karpicke's testing effect,
   Sweller's cognitive load, Kahneman's biases — translated into design decisions you can
@@ -310,7 +301,7 @@ Re-asking the identical problem after a miss tests memory of *that instance*; de
 freshly parameterized version tests the *concept*. Productive failure plus variability
 means the second try should never be the same numbers.
 *Source connection:* productive failure (Kapur); variability of practice.
-*SPOV connection:* SPOV 2, 5.
+*SPOV connection:* SPOV 2.
 
 ### From Simulations & Cognitive Load
 
@@ -327,7 +318,7 @@ animate-small/batch-large rule (animate a handful of trials for intuition, compu
 rest and animate only the aggregate) is really a cognitive-load decision dressed as a
 performance one — it keeps attention on the emerging pattern, not 1,000 moving dots.
 *Source connection:* Cognitive Load Theory (Sweller); Kirschner, Sweller & Clark.
-*SPOV connection:* SPOV 4 (guided depth), SPOV 1.
+*SPOV connection:* SPOV 1, 6.
 
 ### From Probabilistic Intuition & Representation
 
@@ -337,7 +328,7 @@ math (Monty Hall, birthday problem, gambler's fallacy). That gap is the raw mate
 predict-then-verify — pick a domain where people are usually *right* and the loop has
 nothing to teach.
 *Source connection:* heuristics & biases (Tversky & Kahneman).
-*SPOV connection:* SPOV 1, 6.
+*SPOV connection:* SPOV 1, 4.
 
 **Insight 7 — Switching between probability and counts trains two minds, not one.** Because
 natural frequencies unlock reasoning that percentages hide, alternating "P(...)" with
@@ -351,7 +342,7 @@ the whole course.** Most real-world "probability" failures are outcome bias — 
 decision by its result. The Arcade's "grade the decision, not the luck" is therefore not a
 gimmick bolted onto a game; it may be the most transferable thing the app teaches.
 *Source connection:* law of large numbers; outcome bias / gambler's fallacy.
-*SPOV connection:* SPOV 6.
+*SPOV connection:* SPOV 4.
 
 ### From AI Architecture
 
@@ -362,28 +353,37 @@ moment you ask it to *produce* the 0.02, you've traded a guarantee for a vibe.
 *Source connection:* hallucination survey (Ji et al.); PAL (Gao et al.).
 *SPOV connection:* SPOV 3.
 
-**Insight 10 — "Works with AI off" is a forcing function for good architecture.** Requiring
-the app to be fully functional with no model and no backend forces a clean separation:
-deterministic core, then optional enhancement. That constraint is *why* the answer engine
-and the narrator can never tangle — the narrator literally isn't there half the time.
-*Source connection:* progressive enhancement; PRD NFR-7.
-*SPOV connection:* SPOV 3.
+### From Spacing, Interleaving, Scaffolding & Pretesting
 
-### From Motivation & Mastery
+**Insight 10 — The unit of spaced review is the *concept*, not the *lesson*.** Replaying a
+lesson you just finished reviews your memory of *that session*; pulling the same idea back
+days later, mixed among others, reviews the *concept*. That distinction is why Mixed
+Practice schedules concepts (`UserStats.review`) and interleaves across cleared lessons
+rather than ever replaying one in place.
+*Source connection:* spacing (Cepeda et al.); interleaving (Rohrer & Taylor).
+*SPOV connection:* SPOV 5.
 
-**Insight 11 — One counter can only honestly measure one thing.** The instant a streak
-counts "any activity," it stops measuring habit and starts measuring app-opens. Splitting
-streak (Problem of the Day only) from the activity heatmap (everything) keeps each metric
-*true*, which is what lets them motivate without corrupting behavior.
-*Source connection:* SDT; overjustification (Deci, Koestner & Ryan).
-*SPOV connection:* SPOV 7.
+**Insight 11 — A review you can retry is a review you can fake — so let the learner grade
+it.** Auto-grading a spaced review invites guess-until-correct, which quietly corrupts the
+schedule into noise. Anki-style self-rating turns the integrity problem into the learner's
+honest call, and a "Missed it" that resets a concept to one day costs nothing to admit —
+which is precisely what keeps the spacing signal true.
+*Source connection:* testing effect; spaced-repetition systems (Leitner / SM-2).
+*SPOV connection:* SPOV 5.
 
-**Insight 12 — Mastery gating is what makes depth possible.** A deep single spine only
-works if each rung is solid before the next; clear-before-unlock (and all-green-for-
-mastery) is the mechanism that lets later lessons *assume* earlier intuition — the
-compounding that breadth catalogs can't achieve.
-*Source connection:* mastery learning (Bloom).
-*SPOV connection:* SPOV 4.
+**Insight 12 — Scaffolding is only good if it *leaves*.** Help that never fades becomes a
+crutch and then an insult: the same worked example that rescues a novice wastes an expert's
+attention (expertise reversal). The valuable design move isn't "add scaffolding," it's
+"schedule its removal" — worked → completion → full, then gone at first clear.
+*Source connection:* worked-example & guidance-fading; expertise reversal (Kalyuga et al.).
+*SPOV connection:* SPOV 6.
+
+**Insight 13 — Let them be wrong *before* you teach.** A guess before instruction is the
+cheapest, most-overlooked win in the whole loop: it costs one tap, can't lower a grade, and
+measurably improves what the following lesson sticks. The pretest reframes "I don't know
+this yet" from a deficit into the hook the lesson then pays off.
+*Source connection:* pretesting effect (Richland/Kornell); generation effect.
+*SPOV connection:* SPOV 6, SPOV 1.
 
 ---
 
@@ -403,8 +403,8 @@ any amount of clear explanation delivered up front.
     - On an immediate (5-min) test, re-studying beat testing (~81% vs ~75%).
     - The result **reversed** with delay: after one week, the tested group recalled ~56%
       vs ~42% for the re-study group — with no feedback given during testing.
-    - In Experiment 1, proportional forgetting over a week was ~10% (repeated testing)
-      vs ~52% (repeated study).
+    - In a second experiment, proportional forgetting over a week was ~10% (repeated
+      testing, STTT) vs ~52% (repeated study, SSSS).
   - **DOK 2 — Summary:** Being tested is not just measurement; it *changes* memory. Short-
     term, re-reading looks better, which is exactly the trap — designers optimizing for
     the immediate session pick the worse long-term strategy. The Long Run optimizes for
@@ -533,7 +533,7 @@ the domain and the framing are chosen to exploit (and repair) known failures of 
     - The format effect was ~3× larger than other manipulations tested.
   - **DOK 2 — Summary:** Representation is pedagogy. Alternating "about how many of N…"
     with "P(...)" gives learners the count format that unlocks reasoning *and* trains
-    translation between the two — the basis of SPOV 5's generated count/probability mix.
+    translation between the two — a representation-level interleaving across problems (SPOV 5).
   - **Link:** https://psycnet.apa.org/doi/10.1037/0033-295X.102.4.684
 
 **3.3 Law of Large Numbers, Experienced**
@@ -546,7 +546,7 @@ the domain and the framing are chosen to exploit (and repair) known failures of 
   - **DOK 2 — Summary:** The product's name and spine. Making the long run *visible* —
     1,000 flips converging, tens of thousands of blackjack hands drifting below zero — is
     how the app turns an abstract theorem into something the learner has *seen*, and how
-    the Arcade separates skill from luck (SPOV 6).
+    the Arcade separates skill from luck (SPOV 4).
   - **Link:** https://en.wikipedia.org/wiki/Law_of_large_numbers
 
 ### 4. AI as Narrator, Not Oracle
@@ -593,7 +593,7 @@ mastery gating enables depth.
   - **DOK 2 — Summary:** Over-gamifying (a streak you can farm by any action) risks
     crowding out the intrinsic satisfaction of understanding. Keeping the streak tied to
     one honest daily rep, and feedback explanatory rather than score-y, protects the real
-    motivator (SPOV 7).
+    motivator.
   - **Link:** https://psycnet.apa.org/doi/10.1037/0033-2909.125.6.627
 
 **5.2 Mastery Learning**
@@ -604,9 +604,74 @@ mastery gating enables depth.
       conventional-class peers (to ~98th percentile).
     - Mastery learning requires demonstrated competence before advancing.
   - **DOK 2 — Summary:** Clear-before-unlock and all-green-for-mastery are the scalable
-    echo of this finding, and the mechanism that makes a deep single-subject spine
-    possible (SPOV 4): each lesson can assume the prior one is solid.
+    echo of this finding, and the gate that lets the spaced/interleaved review layer
+    operate only over genuinely-cleared concepts (SPOV 5): each lesson can assume the
+    prior one is solid.
   - **Link:** https://journals.sagepub.com/doi/10.3102/0013189X013006004
+
+### 6. Spacing, Interleaving, Worked Examples & Pretesting
+
+**Summary:** The Phase-3 learning-science layer — how a *finished* lesson is kept from
+fading (spacing + interleaving via Mixed Practice), how a *new* lesson is eased into
+(worked → completion → full, then faded), and how the *first contact* is primed
+(pretesting). These are scheduling/ordering/presentation choices only; every answer is
+still computed by `probability.ts`.
+
+**6.1 The Spacing Effect**
+- **Source:** Cepeda, N. J., Pashler, H., Vul, E., Wixted, J. T., & Rohrer, D. (2006).
+  *Distributed practice in verbal recall tasks: A review and quantitative synthesis.*
+  Psychological Bulletin, 132(3), 354–380.
+  - **DOK 1 — Facts:**
+    - A meta-analysis of 839 assessments of distributed practice across 317 experiments
+      (in 184 articles), confirming the spacing advantage.
+    - Inter-study interval and retention interval interact: the gap producing maximal
+      retention grows as the retention interval grows.
+  - **DOK 2 — Summary:** Spacing reviews over expanding gaps is among the most robust
+    findings in learning science — the direct basis for Mixed Practice's 1 → 3 → 7 → 14-day
+    ladder and its "due now" prioritization (SPOV 5).
+  - **Link:** https://pubmed.ncbi.nlm.nih.gov/16719566/
+
+**6.2 Interleaving**
+- **Source:** Rohrer, D., & Taylor, K. (2007). *The shuffling of mathematics problems
+  improves learning.* Instructional Science, 35, 481–498 (and Rohrer, Dedrick & Stershic,
+  2015).
+  - **DOK 1 — Facts:**
+    - Practicing *mixed* problem types ("shuffled") produced far higher later test scores
+      than blocked practice of one type at a time.
+    - Interleaving feels harder *during* practice even as it improves the test — a classic
+      desirable difficulty.
+  - **DOK 2 — Summary:** Interleaving trains the learner to choose the *approach*, not just
+    execute it. Mixed Practice draws across all cleared lessons and forbids back-to-back
+    same-lesson problems for exactly this reason (SPOV 5).
+  - **Link:** https://link.springer.com/article/10.1007/s11251-007-9015-8
+
+**6.3 Worked Examples, Completion & the Expertise-Reversal Effect**
+- **Source:** Sweller, J., & Cooper, G. A. (1985); Renkl, A., & Atkinson, R. K. (2003);
+  Kalyuga, S., Ayres, P., Chandler, P., & Sweller, J. (2003). *The expertise reversal
+  effect.* Educational Psychologist, 38(1), 23–31.
+  - **DOK 1 — Facts:**
+    - For novices, *studying* worked examples beats solving equivalent problems (lower
+      extraneous load), freeing working memory to build a schema.
+    - Gradually fading worked steps — "completion problems," with *backward* fading — eases
+      the transfer to full problem-solving.
+    - The worked-example advantage **reverses** as expertise grows: redundant support
+      *hurts* more knowledgeable learners.
+  - **DOK 2 — Summary:** The research spine of worked → completion → full *and* its fade at
+    first clear — help the novice, then get out of the way (SPOV 6).
+  - **Link:** https://www.tandfonline.com/doi/10.1207/S15326985EP3801_4
+
+**6.4 The Pretesting Effect**
+- **Source:** Richland, L. E., Kornell, N., & Kao, L. S. (2009). *The pretesting effect:
+  Do unsuccessful retrieval attempts enhance learning?* JEP: Applied, 15(3), 243–257 (and
+  Kornell, Hays & Bjork, 2009).
+  - **DOK 1 — Facts:**
+    - Attempting (and failing) a test on material *before* studying it improved later
+      retention vs. spending the same time studying.
+    - The benefit holds even though the pretest answers are wrong — the *attempt* is what
+      primes encoding.
+  - **DOK 2 — Summary:** A guess before instruction primes learning — the basis for the
+    one-shot, ungraded pretest and its intuition-vs-reality reveal on completion (SPOV 6).
+  - **Link:** https://psycnet.apa.org/doi/10.1037/a0015872
 
 ---
 
@@ -617,6 +682,9 @@ mastery gating enables depth.
 - Bloom, B. S. (1984). The 2 Sigma Problem. *Educational Researcher,* 13(6), 4–16.
 - Butterfield, B., & Metcalfe, J. (2001). Errors committed with high confidence are
   hypercorrected. *JEP: LMC,* 27(6).
+- Cepeda, N. J., Pashler, H., Vul, E., Wixted, J. T., & Rohrer, D. (2006). Distributed
+  practice in verbal recall tasks: A review and quantitative synthesis. *Psychological
+  Bulletin,* 132(3), 354–380.
 - Deci, E. L., Koestner, R., & Ryan, R. M. (1999). A meta-analytic review of experiments
   examining the effects of extrinsic rewards on intrinsic motivation. *Psych. Bulletin,*
   125(6), 627–668.
@@ -627,14 +695,26 @@ mastery gating enables depth.
   instruction: Frequency formats. *Psychological Review,* 102(4), 684–704.
 - Ji, Z., et al. (2023). Survey of Hallucination in Natural Language Generation.
   *ACM Computing Surveys,* 55(12).
+- Kalyuga, S., Ayres, P., Chandler, P., & Sweller, J. (2003). The expertise reversal
+  effect. *Educational Psychologist,* 38(1), 23–31.
 - Kapur, M. (2008). Productive Failure. *Cognition and Instruction,* 26(3), 379–424.
 - Kirschner, P. A., Sweller, J., & Clark, R. E. (2006). Why minimal guidance during
   instruction does not work. *Educational Psychologist,* 41(2), 75–86.
+- Kornell, N., Hays, M. J., & Bjork, R. A. (2009). Unsuccessful retrieval attempts enhance
+  subsequent learning. *JEP: Learning, Memory, and Cognition,* 35(4), 989–998.
 - Metcalfe, J. (2017). Learning from errors. *Annual Review of Psychology,* 68, 465–489.
+- Renkl, A., & Atkinson, R. K. (2003). Structuring the transition from example study to
+  problem solving in cognitive skill acquisition. *Educational Psychologist,* 38(1), 15–22.
+- Richland, L. E., Kornell, N., & Kao, L. S. (2009). The pretesting effect: Do unsuccessful
+  retrieval attempts enhance learning? *JEP: Applied,* 15(3), 243–257.
 - Roediger, H. L., & Karpicke, J. D. (2006). Test-enhanced learning. *Psychological
   Science,* 17(3), 249–255.
+- Rohrer, D., & Taylor, K. (2007). The shuffling of mathematics problems improves learning.
+  *Instructional Science,* 35, 481–498.
 - Slamecka, N. J., & Graf, P. (1978). The generation effect. *JEP: Human Learning and
   Memory,* 4(6), 592–604.
+- Sweller, J., & Cooper, G. A. (1985). The use of worked examples as a substitute for
+  problem solving in learning algebra. *Cognition and Instruction,* 2(1), 59–89.
 - Tversky, A., & Kahneman, D. (1974). Judgment under uncertainty: Heuristics and biases.
   *Science,* 185(4157), 1124–1131.
 - White, R., & Gunstone, R. (1992). *Probing Understanding* (Predict–Observe–Explain).

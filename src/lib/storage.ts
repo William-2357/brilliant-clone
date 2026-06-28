@@ -57,6 +57,23 @@ export function emptyArcade(): ArcadeStats {
   };
 }
 
+/**
+ * Spaced-repetition schedule for one already-mastered concept (PRD FR-11.1),
+ * keyed by `conceptId` (which equals the lessonId). A correct review in Mixed
+ * Practice advances `intervalStep` one rung up `REVIEW_INTERVALS_DAYS`
+ * (1d → 3d → 7d → 14d, capped); a wrong review resets it to the shortest rung.
+ * Stored on `UserStats` so it rides the existing Backend/progress abstraction
+ * (localStorage fallback) — no new Firestore subcollection.
+ */
+export interface ReviewState {
+  /** Index into `REVIEW_INTERVALS_DAYS`. */
+  intervalStep: number;
+  /** Epoch ms; the concept is "due" when this is `<= Date.now()`. */
+  nextReviewAt: number;
+  /** Epoch ms of the most recent review. */
+  lastReviewedAt: number;
+}
+
 /** Per-user habit stats (streaks) — stored once per user, not per lesson. */
 export interface UserStats {
   /** Consecutive calendar days with at least one active session. */
@@ -71,6 +88,8 @@ export interface UserStats {
   dailyActivity: Record<string, number>;
   /** Arcade (Apply) bankroll + decision quality. */
   arcade: ArcadeStats;
+  /** Spaced-repetition schedule per mastered concept (conceptId === lessonId). */
+  review: Record<string, ReviewState>;
 }
 
 export function emptyStats(): UserStats {
@@ -81,6 +100,7 @@ export function emptyStats(): UserStats {
     totalDaysActive: 0,
     dailyActivity: {},
     arcade: emptyArcade(),
+    review: {},
   };
 }
 

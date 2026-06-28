@@ -6,6 +6,7 @@ import {
   lessonProgressFraction,
   isCleared,
 } from '../store/progress';
+import { reviewSummary, REVIEW_INTERVALS_DAYS } from '../store/review';
 import { useProgress } from '../hooks/useProgress';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../hooks/useTheme';
@@ -66,6 +67,8 @@ export default function ProfilePage() {
   const clearedCount = lessons.filter(
     (l) => l.status === 'built' && isCleared(progress.all[l.id]),
   ).length;
+  const review = reviewSummary(progress.stats, lessons, progress.all, new Date().getTime());
+  const maxBucket = Math.max(1, ...review.buckets);
 
   const tiles = [
     { v: String(currentStreak), l: 'Day streak' },
@@ -167,6 +170,61 @@ export default function ProfilePage() {
             activity={progress.stats.dailyActivity ?? {}}
             currentStreak={currentStreak}
           />
+
+          <div className="panel review-panel">
+            <div className="aside-card-head">
+              <span className="home-card-ico" style={{ color: 'var(--cyan)' }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" {...ICO} aria-hidden>
+                  <path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1" />
+                  <path d="M5 3v3.5h3.5" />
+                  <path d="M12 8v4l2.5 2" />
+                </svg>
+              </span>
+              <div className="aside-card-htext">
+                <span className="aside-card-title">Memory strength</span>
+                <span className="aside-card-sub">Spaced-repetition schedule</span>
+              </div>
+            </div>
+
+            {review.eligible === 0 ? (
+              <p className="review-empty">
+                Clear a lesson to start building spaced-repetition intervals.
+              </p>
+            ) : (
+              <>
+                <div className="review-due">
+                  <span className="review-due-n">{review.due}</span>
+                  <span className="review-due-l">
+                    {review.due === 1 ? 'concept due now' : 'concepts due now'}
+                  </span>
+                  {review.due > 0 && (
+                    <button
+                      type="button"
+                      className="btn btn-primary review-due-btn"
+                      onClick={() => navigate('/practice')}
+                    >
+                      Review →
+                    </button>
+                  )}
+                </div>
+                <ul className="review-bars" aria-label="Concepts by review interval">
+                  {REVIEW_INTERVALS_DAYS.map((d, i) => (
+                    <li key={d} className="review-bar-row">
+                      <span className="review-bar-label">{d}d</span>
+                      <span className="review-bar-track">
+                        <i style={{ width: `${Math.round((review.buckets[i] / maxBucket) * 100)}%` }} />
+                      </span>
+                      <span className="review-bar-count">{review.buckets[i]}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="review-foot">
+                  {review.scheduled} scheduled · {review.eligible} concept
+                  {review.eligible === 1 ? '' : 's'} in rotation
+                </p>
+              </>
+            )}
+          </div>
 
           <div className="panel">
             <div className="aside-card-head">

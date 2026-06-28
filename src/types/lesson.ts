@@ -144,6 +144,24 @@ export type LessonState = 'locked' | 'available' | 'in-progress' | 'cleared' | '
  */
 export type ProblemResult = 'green' | 'yellow' | 'red';
 
+/**
+ * A pretest (FR — pretesting / errorful generation): the learner's cold guess on
+ * one representative problem, captured *before* the concept is taught on the very
+ * first visit to a lesson. It is never graded toward mastery — it only powers the
+ * "intuition vs. reality" reveal on the completion screen. `answer` is the
+ * app-computed truth for the generated instance, snapshotted at capture time so
+ * the reveal stays stable regardless of later regeneration.
+ */
+export interface PreTestRecord {
+  stepId: string;
+  question: string;
+  /** The learner's numeric guess, or null when they chose "I'm not sure". */
+  guess: number | null;
+  answer: number;
+  unit?: string;
+  at: number;
+}
+
 export interface LessonProgress {
   /** True when every gradable question is green (a perfect run). */
   mastered: boolean;
@@ -162,4 +180,16 @@ export interface LessonProgress {
   seed?: number;
   /** Replay counter — advances the question pool each time the lesson is restarted. */
   attempt?: number;
+  /**
+   * How many times this lesson has been cleared (all green/yellow). Drives fading
+   * scaffolding (FR-11.4): support is on while this is 0, then fades. Optional for
+   * backward-compat — legacy records default to 0.
+   */
+  timesCleared?: number;
+  /**
+   * The learner's pretest guess from their first-ever visit (pretesting). Set once,
+   * before the lesson teaches anything; surfaced on the completion screen as the
+   * intuition-vs-reality reveal. Absent on legacy/replayed records.
+   */
+  preTest?: PreTestRecord | null;
 }

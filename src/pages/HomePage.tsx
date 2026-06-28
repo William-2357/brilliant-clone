@@ -4,9 +4,11 @@ import {
   courseStats,
   allLessonsCleared,
   lessonState,
+  isCleared,
   dayKey,
 } from '../store/progress';
 import { dailyProblem, dailySim } from '../content/daily';
+import { dueCount } from '../store/review';
 import { useProgress } from '../hooks/useProgress';
 import { useAuth } from '../hooks/useAuth';
 import { useUnlockAll } from '../hooks/useUnlockAll';
@@ -75,6 +77,8 @@ export default function HomePage() {
   const testUnlocked = unlockAll || allLessonsCleared(lessons, progress.all);
   const testTotal = gradableSteps(finalTest).length;
   const { currentStreak, longestStreak } = progress.stats;
+  const reviewsDue = dueCount(progress.stats, lessons, progress.all, new Date().getTime());
+  const hasCleared = lessons.some((l) => l.status === 'built' && isCleared(progress.all[l.id]));
 
   // Today's daily content, pulled from the same date-seeded picks the dedicated
   // pages render so the widget text matches what's behind it.
@@ -237,6 +241,35 @@ export default function HomePage() {
               <span className="home-card-body">
                 <span className="home-card-title">Sandbox</span>
                 <span className="home-card-sub">Play with the simulations freely</span>
+              </span>
+              <span className="home-card-go" aria-hidden>
+                →
+              </span>
+            </button>
+
+            <button type="button" className="home-card" onClick={() => navigate('/practice')}>
+              <span className="home-card-ico" style={{ color: 'var(--cyan)' }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" {...ICO} aria-hidden>
+                  <path d="M4 7h11" />
+                  <path d="M9 12h11" />
+                  <path d="M4 17h11" />
+                  <circle cx="19" cy="7" r="1.6" fill="currentColor" stroke="none" />
+                  <circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none" />
+                  <circle cx="19" cy="17" r="1.6" fill="currentColor" stroke="none" />
+                </svg>
+              </span>
+              <span className="home-card-body">
+                <span className="home-card-title">
+                  Mixed Practice
+                  {reviewsDue > 0 && <span className="home-card-pill">{reviewsDue} due</span>}
+                </span>
+                <span className="home-card-sub">
+                  {reviewsDue > 0
+                    ? `${reviewsDue} concept${reviewsDue === 1 ? '' : 's'} due for review`
+                    : hasCleared
+                      ? 'Interleaved review of cleared lessons'
+                      : 'Clear a lesson to unlock'}
+                </span>
               </span>
               <span className="home-card-go" aria-hidden>
                 →

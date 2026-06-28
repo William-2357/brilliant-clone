@@ -67,6 +67,7 @@ export function initialProgress(firstStepId: string): LessonProgress {
     lastVisited: null,
     seed: randomSeed(),
     attempt: 0,
+    timesCleared: 0,
   };
 }
 
@@ -112,6 +113,30 @@ export function allQuestionsResolved(lesson: Lesson, progress: LessonProgress | 
 /** Cleared, tolerant of legacy progress where only `mastered` was stored. */
 export function isCleared(p: LessonProgress | undefined): boolean {
   return p?.cleared === true || p?.mastered === true;
+}
+
+/**
+ * Scaffolding stage for a problem under the worked → completion → full progression
+ * (FR-11.4, extended with backward fading). Only a *guided* lesson (a fresh,
+ * never-cleared first attempt) gets support, and only when a worked example is
+ * actually available for the relevant stage:
+ *   ordinal 0 → 'worked'      (study a fully worked canonical example)
+ *   ordinal 1 → 'completion'  (finish the learner's own instance, last line blanked)
+ *   else      → 'full'        (cold)
+ * Backward fading: the earliest problems carry the most support, which is removed
+ * step by step as the learner moves through the lesson — and entirely once cleared.
+ */
+export type SupportLevel = 'worked' | 'completion' | 'full';
+
+export function supportLevelFor(
+  guided: boolean,
+  ordinal: number,
+  available: { worked: boolean; completion: boolean },
+): SupportLevel {
+  if (!guided) return 'full';
+  if (ordinal === 0 && available.worked) return 'worked';
+  if (ordinal === 1 && available.completion) return 'completion';
+  return 'full';
 }
 
 /** Built lessons in a section (coming-soon lessons don't count toward gating). */

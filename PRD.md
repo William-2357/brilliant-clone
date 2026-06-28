@@ -233,22 +233,23 @@ and the house edge "in the long run."
 
 ### Techniques to Implement
 
-| ID | Technique | Implementation |
-|----|-----------|---------------|
-| FR-11.1 | Spaced repetition | Mastered concepts resurface in Mixed Practice at growing intervals (1d → 3d → 7d → 14d), tracked per concept via `nextReviewAt`; a wrong answer resets that concept's interval to the shortest step |
-| FR-11.2 | Interleaving | **Mixed Practice** mode draws problems across all *mastered* lessons in randomized order, mixing problem types within a session rather than blocking by lesson |
-| FR-11.3 | Mastery learning | A lesson cannot unlock until its prerequisite is demonstrably mastered (all of the prerequisite's gradable problems answered correctly, per FR-5.2) |
-| FR-11.4 | Scaffolding | Simulations start in guided mode with extra explanation and worked examples visible; this support fades after demonstrated understanding |
-| FR-11.5 | Retrieval practice | Problems require recalling a value or predicting an outcome from memory, not recognizing from options |
+| ID | Technique | Status | Implementation |
+|----|-----------|--------|---------------|
+| FR-11.1 | Spaced repetition | **Implemented** | Mastered concepts resurface in Mixed Practice at growing intervals (1d → 3d → 7d → 14d), tracked per concept (`UserStats.review[conceptId]` = `{ intervalStep, nextReviewAt, lastReviewedAt }`). Adopts Anki's *spacing* but the **deterministic engine grades** the committed answer (never a self-report) in **one attempt** — so a pass is neither brute-forceable nor self-deceivable: correct advances one rung (capped), wrong resets to the shortest step and reveals the answer. Pure logic in `src/store/review.ts` (`scheduleAfterReview`, `dueConcepts`, `dueCount`, `reviewSummary`), persisted via `recordReview` in `useProgress` |
+| FR-11.2 | Interleaving | **Implemented** | The **Mixed Practice** mode (`/practice`, `src/pages/MixedPracticePage.tsx`, engine in `src/content/mixedPractice.ts`) draws problems across all *cleared/mastered* lessons, prioritizes due concepts, and arranges them so no two consecutive picks share a lesson — mixing problem types within a session rather than blocking by lesson |
+| FR-11.3 | Mastery learning | **Done (Phase 1)** | A lesson cannot unlock until its prerequisite is demonstrably cleared/mastered (per FR-5.2), gated in `src/store/progress.ts` |
+| FR-11.4 | Scaffolding (worked → completion → full) | **Implemented** | A fresh, never-cleared lesson fades support across its problems via **backward fading**: problem 1 shows a fully **worked** example to study (a fixed canonical instance), problem 2 is a **completion** problem (the learner's own instance with the final line blanked), and the rest are **full** (cold). Support is removed entirely once cleared at least once (`LessonProgress.timesCleared`) or on replay — expertise reversal. Worked breakdowns are **derived from the step's own `simConfig`/`answer`** (`src/lib/worked.ts`, `deriveWorked`/`canonicalWorked`), so they cover both templated and bank-generated problems and never invent a number the engine didn't compute; sims without a modeled breakdown degrade to the prior guided hint. Stage logic is the pure `supportLevelFor` in `src/store/progress.ts`. Mixed Practice is always full |
+| FR-11.5 | Retrieval practice | **Done (Phase 1)** | Predict-then-verify requires recalling a value or predicting an outcome from memory, not recognizing from options |
+| FR-11.6 | Pretesting (errorful generation) | **Implemented** | On the **first-ever** visit to a lesson, the learner commits one cold guess on a representative numeric/slider problem **before any teaching** (`src/components/PretestCard.tsx`); it is **never graded** toward mastery. The guess is stored on `LessonProgress.preTest` (via `recordPreTest` in `useProgress`) and surfaced on the completion screen as an **intuition-vs-reality reveal**. "I'm not sure" is supported, and the lesson closes the gap immediately after — satisfying the "answer arrives shortly after" condition for the effect |
 
-**Spaced-repetition schema (Firestore):**
+**Spaced-repetition schema (on `UserStats`, not a new Firestore subcollection):**
 ```
-users/{uid}/review/{conceptId}
-  intervalStep: number       // index into [1d, 3d, 7d, 14d]
-  nextReviewAt: timestamp    // when this concept is due in Mixed Practice
-  lastReviewedAt: timestamp
+UserStats.review[conceptId]   // conceptId === lessonId
+  intervalStep: number        // index into [1d, 3d, 7d, 14d]
+  nextReviewAt: number        // epoch ms; "due" when <= Date.now()
+  lastReviewedAt: number      // epoch ms
 ```
-A concept becomes eligible for review scheduling once its lesson is mastered. Mixed Practice surfaces concepts whose `nextReviewAt <= now`, prioritizing the most overdue.
+Both backends serialize `UserStats` generically (`{ ...emptyStats(), ...stored }`), so this needs no `ProgressAdapter`/Firestore-rules change and old records default to `review: {}` safely. A concept becomes review-eligible once its lesson is cleared/mastered. Mixed Practice surfaces concepts with no record yet (first review) or `nextReviewAt <= now`, prioritizing the most overdue.
 
 ---
 

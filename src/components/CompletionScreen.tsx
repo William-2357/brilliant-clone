@@ -38,6 +38,34 @@ export default function CompletionScreen({
     { green: 0, yellow: 0, red: 0 },
   );
 
+  const fmtVal = (unit: string | undefined, v: number): string => {
+    if (unit === 'dollars') return `$${Number.isInteger(v) ? v.toFixed(0) : v.toFixed(2)}`;
+    if (unit === 'count' || unit === 'sum' || unit === 'matches') return String(Math.round(v));
+    return v.toFixed(3);
+  };
+
+  // Pretesting reveal: how the learner's first-visit gut guess compares to the truth.
+  const pre = progress?.preTest ?? null;
+  let pretestReveal: { guess: string | null; answer: string; spotOn: boolean } | null = null;
+  if (pre) {
+    const answerStr = fmtVal(pre.unit, pre.answer);
+    if (pre.guess === null) {
+      pretestReveal = { guess: null, answer: answerStr, spotOn: false };
+    } else {
+      const eps =
+        pre.unit === 'dollars'
+          ? 0.5
+          : pre.unit === 'count' || pre.unit === 'sum' || pre.unit === 'matches'
+            ? Math.max(1, Math.abs(pre.answer) * 0.05)
+            : 0.05;
+      pretestReveal = {
+        guess: fmtVal(pre.unit, pre.guess),
+        answer: answerStr,
+        spotOn: Math.abs(pre.guess - pre.answer) <= eps,
+      };
+    }
+  }
+
   const badge = mastered ? '\u2605' : cleared ? '\u2713' : '\u21BA';
   const title = mastered ? 'Lesson mastered!' : cleared ? 'Lesson cleared' : 'Almost there';
   const summary = mastered
@@ -70,6 +98,39 @@ export default function CompletionScreen({
       </div>
 
       <p className="completion-summary">{summary}</p>
+
+      {pretestReveal && (
+        <div className="pretest-reveal">
+          <span className="pretest-reveal-eyebrow">Your intuition, then vs. now</span>
+          {pretestReveal.guess === null ? (
+            <p className="pretest-reveal-text">
+              You started this lesson unsure — now you know the answer is{' '}
+              <strong>{pretestReveal.answer}</strong>.
+            </p>
+          ) : (
+            <>
+              <div className="pretest-reveal-row">
+                <span className="pretest-reveal-item">
+                  <span className="pretest-reveal-label">Before the lesson</span>
+                  <span className="pretest-reveal-guess">{pretestReveal.guess}</span>
+                </span>
+                <span className="pretest-reveal-arrow" aria-hidden>
+                  →
+                </span>
+                <span className="pretest-reveal-item">
+                  <span className="pretest-reveal-label">The answer</span>
+                  <span className="pretest-reveal-answer">{pretestReveal.answer}</span>
+                </span>
+              </div>
+              <p className="pretest-reveal-text">
+                {pretestReveal.spotOn
+                  ? 'Great intuition — your first guess was already close.'
+                  : 'See how far your starting intuition was from the truth? That gap is the lesson.'}
+              </p>
+            </>
+          )}
+        </div>
+      )}
 
       {cleared && nextLesson && (
         <>

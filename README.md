@@ -38,16 +38,19 @@ than decoration.
 7. **Stochastic Processes** — random walks, gambler's ruin, Markov chains, branching
 8. **Geometric Probability** — area ratios, Buffon's needle, Bertrand, order statistics
 
-Lessons are grouped into **sections (units)** and unlock in sequence. Each lesson is
-one **concept** step (explore the simulation freely, with a short KaTeX lecture)
-followed by **five gradable problems** (`predict → run → feedback`).
+Lessons are grouped into **sections (units)** that **unlock as a unit**: clear every
+lesson in a unit and the next unit opens, but within an unlocked unit you can play its
+lessons in **any order**. Each lesson is one **concept** step (explore the simulation
+freely, with a short KaTeX lecture) followed by **four or five gradable problems**
+(`predict → run → feedback`) — the original eight showcase lessons and the Final Test
+have five; some later lessons have four.
 Every problem allows two attempts — first-try correct scores **green**, a second-try
-correct **yellow**, two misses **red**. A lesson **clears** (unlocking the next) once
-all five are green or yellow, and is **mastered** when all five are green. A wrong
-first attempt reveals nothing — not even the simulation — so the answer and
-explanation appear only after the second miss. Two wrong answers in a row re-surface
-the lesson's own teaching material, and you can flip on **Free navigation** to jump
-to any lesson.
+correct **yellow**, two misses **red**. A lesson **clears** once they're all green or
+yellow, and is **mastered** when they're all green; clearing every lesson in a unit is
+what unlocks the next unit. A wrong first attempt reveals nothing — not even the
+simulation — so the answer and explanation appear only after the second miss. Two wrong
+answers in a row re-surface the lesson's own teaching material, and you can flip on
+**Free navigation** to jump to any lesson.
 
 **Questions are generated, not fixed.** Each problem is built from a parameterized
 template (`src/content/problemTemplates.ts`) that varies the numbers and objects and
@@ -75,6 +78,9 @@ number, some problems are a **slider** prediction, **drag-to-rank**, or
   scores you (≥ 70% to pass) and celebrates. Questions are generated from the same
   templates, and an in-progress attempt survives a refresh without leaking correctness.
 - **Sandbox** (`/sandbox`) — play any simulation freely, no grading.
+- **Mixed Practice** (`/practice`) — an interleaved, **spaced-repetition** review over the
+  lessons you've cleared (Anki-style spacing, graded by the engine in one attempt). See
+  [Learning science](#learning-science-phase-3) below.
 - **Arcade / Apply** (`/arcade`) — put the math to work in a game. v1 is a **Blackjack
   trainer** (play chips only) built around expected value, variance, and the house edge
   "in the long run." A live **dealer-coach** explains the EV-optimal play at every
@@ -82,7 +88,9 @@ number, some problems are a **slider** prediction, **drag-to-rank**, or
 - **Profile** (`/profile`) — every stat in one place (streak, best streak, days
   active, course %, lessons mastered/cleared, problems solved, first-try rate,
   questions answered), a cumulative **mastery curve**, per-lesson status, the activity
-  heatmap, and preferences (light/dark theme, Free navigation, sign out).
+  heatmap, a **memory-strength** readout (concepts due now + their spread across the
+  spaced-repetition intervals), and preferences (light/dark theme, Free navigation,
+  AI explanations, sign out).
 
 ### Habit loop
 
@@ -92,6 +100,85 @@ double-counts). Separately, an **activity heatmap** (a month calendar, darker gr
 for more problems resolved) tallies *every* problem you resolve — lessons, the final
 test, and the daily problem — and shows on Home and the profile. Mastering a lesson
 triggers a milestone, and finishing the course is celebrated.
+
+## Learning science (Phase 3)
+
+Several evidence-based techniques layer on top of the course **without changing any
+answer** — they only decide *when*, *in what order*, *with how much help*, and *whether
+before or after teaching* a problem appears. Everything is still computed by
+`probability.ts` / `generateProblem`, so Phase 3 is purely scheduling, ordering, and
+presentation. It all works with no Firebase and no AI configured.
+
+### Mixed Practice — interleaving + spaced repetition (`/practice`)
+
+Once you **clear** a lesson, its concept enters a review rotation. **Mixed Practice**
+builds a short session (six problems) that:
+
+- **Interleaves** — it draws problems across *all* your cleared lessons and shuffles
+  them so no two consecutive problems come from the same lesson. Mixing topics and
+  problem types within a session beats blocking by lesson.
+- **Prioritizes what's fading** — concepts that are **due** come first (most overdue
+  first); a small **due badge** shows on Home and in the sidebar.
+
+**Spaced repetition with Anki's spacing, graded by the engine.** Each concept rides an
+interval ladder — **1 day → 3 → 7 → 14**. It borrows Anki's *scheduling* but not its
+honor-system grading: real Anki self-grades only because the answer lives in your head
+and the app can't see it, whereas here you commit a concrete, machine-checkable answer,
+so the **deterministic engine grades it** (the same source of truth used everywhere else
+in the app — never a self-report that could be gamed). Grading is **one attempt, no
+retries**, so a pass can be neither brute-forced nor self-deceived:
+
+- **Correct** → the concept moves up one rung and waits longer before returning (capped
+  at 14 days).
+- **Wrong** (or "I don't know — reveal") → the answer + explanation are revealed and the
+  concept resets to the **1-day** rung so it resurfaces soon.
+
+A concept you've just cleared is "due now" for its first review; from then on its
+schedule (`intervalStep` / `nextReviewAt`, in `src/store/review.ts`) lives on
+`UserStats.review` and syncs like everything else. A **post-session summary** reports
+your score and which concepts advanced vs. reset, and the **Profile** adds a
+memory-strength readout — how many concepts are due now and how they're spread across the
+1d / 3d / 7d / 14d intervals.
+
+The **Problem of the Day** keeps its own keep-trying-then-reveal flow — it's a daily
+challenge, not a memory scheduler.
+
+### Fading scaffolding — worked → completion → full
+
+A brand-new lesson eases you in and then **fades the help** problem by problem (backward
+fading — the last step is removed first, since by then you've seen it modeled most):
+
+- **Problem 1 — worked example.** A fully solved, term-by-term example to study *before*
+  you solve your own (e.g. Expected Value: each payout × its probability, summed to the
+  total).
+- **Problem 2 — completion.** The same breakdown for *your* instance with the final line
+  blanked — the setup is done, you finish the last step.
+- **Problems 3+ — full.** Cold, no scaffold.
+
+Once you've cleared the lesson once (`LessonProgress.timesCleared`) or you replay it, the
+support is gone entirely (you can always reopen the lecture) — beginners get the help,
+the competent aren't slowed by it (the *expertise-reversal* effect). The worked numbers
+are **derived from each problem's own data** (`src/lib/worked.ts`), never hand-typed, so
+they're always correct and cover both templated and pre-generated problems; topics
+without a clean breakdown fall back to a guided hint. Mixed Practice is always full.
+
+### Pretesting — guess before you learn
+
+On your **first visit** to a lesson, before any teaching, you commit one quick gut guess
+on a representative problem. It's **never graded** — guessing wrong here is fine and
+actually primes you to learn the idea faster (*errorful generation*). The lesson teaches
+immediately after, and on the completion screen you get an **intuition-vs-reality reveal**:
+your starting guess next to the true answer, so the gap your intuition had becomes the
+lesson's payoff. ("I'm not sure" is also an option.) The guess is stored on
+`LessonProgress.preTest`.
+
+### Already in place from earlier phases
+
+- **Mastery learning** — a unit stays locked until every lesson in the previous unit is
+  cleared (unit-gating in `src/store/progress.ts`), so you only ever review or mix
+  content you've already unlocked.
+- **Retrieval practice** — every gradable problem asks you to produce or predict a value
+  from memory, not recognize it from options.
 
 ## Arcade / Apply — Blackjack trainer (Phase 2 AI)
 
@@ -210,6 +297,15 @@ npm run lint
 npx tsc -b
 ```
 
+Run the tests:
+
+```bash
+npm test          # Vitest unit suite — the owned answer functions (probability.ts),
+                  #   the blackjack engine's Monte-Carlo cross-check, the progress /
+                  #   review / scaffolding logic, and a recompute of every generated answer
+npm run test:e2e  # Playwright end-to-end, on the offline localStorage backend (.env.test)
+```
+
 ## Routes
 
 The app is a single-page hash router (`src/lib/router.ts`); everything except the
@@ -221,8 +317,9 @@ login screen is wrapped in an auth guard.
 | `/`            | Home dashboard                                      |
 | `/learn`       | Course catalog (8 sections)                         |
 | `/learn/section/:sectionId` | A section / unit (its lessons)         |
-| `/learn/:id`   | A lesson (concept + 5 problems)                     |
+| `/learn/:id`   | A lesson (concept + 4–5 problems)                   |
 | `/sandbox`     | Free-play simulations                               |
+| `/practice`    | Mixed Practice — interleaved spaced-repetition review |
 | `/arcade`      | Arcade / Apply — Blackjack trainer + dealer-coach   |
 | `/problem`     | Problem of the Day                                  |
 | `/simulation`  | Simulation of the Day                               |
@@ -245,8 +342,8 @@ is present — no code changes needed:
 Firestore data layout:
 
 ```
-users/{uid}/progress/{lessonId}   -> LessonProgress
-users/{uid}/meta/stats            -> UserStats (streaks + daily activity + arcade)
+users/{uid}/progress/{lessonId}   -> LessonProgress (incl. timesCleared, preTest)
+users/{uid}/meta/stats            -> UserStats (streaks + daily activity + arcade + review schedule)
 ```
 
 Security rules are in `firestore.rules` and restrict every user to their own
@@ -286,6 +383,8 @@ src/
     generated/              # large pre-generated problem pool (authored by scripts/genloop)
     validate.ts             # content-shape validator (structure invariants)
     daily.ts                # date-seeded Problem/Simulation of the Day picks + POTD status
+    mixedPractice.ts        # Mixed Practice engine: mastered-problem pool + interleaved,
+                            #   due-prioritized session builder (Phase 3)
     sandboxSims.ts          # free-play simulation catalog (Sandbox + daily spotlight)
     simData.ts              # prize-wheel definitions shared by content + sim
   lib/
@@ -296,6 +395,7 @@ src/
     coachClient.ts          # server transport for both AI tasks (worker endpoint, by kind)
     rng.ts                  # seeded PRNG (mulberry32) + hashString for question generation
     answer.ts               # parse typed answers (decimals/fractions) + per-unit hints
+    worked.ts               # derive a worked-example breakdown from a step (Phase 3 scaffolding)
     simSpeed.ts             # global animation-speed multiplier (read inside rAF loops)
     storage.ts              # Backend / Auth / Progress / UserStats (+ ArcadeStats) interfaces
     localBackend.ts         # localStorage adapter (fallback, demo-grade auth)
@@ -309,19 +409,33 @@ src/
                             #   CompletionScreen, MilestoneBanner, LectureContent (KaTeX),
                             #   OrderItems, DrawDistribution, PredictScale, WheelSegments,
                             #   QuestionBar, ProgressRing, MasteryCurve, ActivityHeatmap,
-                            #   ProblemOfTheDay, SandboxSpotlight, SpeedControl, LessonIcon,
-                            #   BlackjackTable (the Arcade game), ProfileMenu, AuthGuard, ...
-  hooks/                    # useAuth, useProgress (incl. streaks + daily activity + arcade),
-                            #   useUnlockAll, useTheme, useCoachAI, useExplainAI
-  store/progress.ts         # mastery / clear / next-lesson / streak / course-stats logic (pure)
+                            #   ProblemOfTheDay, PracticeProblem (shared standalone problem:
+                            #   'retry' = daily, 'single' = engine-graded one attempt for
+                            #   Mixed Practice), WorkedExample /
+                            #   PretestCard (Phase 3 worked→completion→full + pretest),
+                            #   SpeedControl, BlackjackTable (the Arcade game), ProfileMenu,
+                            #   AuthGuard, ...
+  hooks/                    # useAuth, useProgress (streaks + daily activity + arcade + reviews
+                            #   + pretest), useUnlockAll, useTheme, useCoachAI, useExplainAI
+  store/
+    progress.ts             # mastery / clear / next-lesson / streak / course-stats +
+                            #   scaffolding stage (supportLevelFor: worked→completion→full), pure
+    review.ts               # spaced-repetition ladder + due-concept selection (pure, Phase 3)
   pages/                    # LoginPage, HomePage, CoursePage, UnitPage, LessonPage,
-                            #   SandboxPage, ArcadePage, ProblemPage, SimulationPage,
-                            #   TestPage, ProfilePage
+                            #   SandboxPage, MixedPracticePage, ArcadePage, ProblemPage,
+                            #   SimulationPage, TestPage, ProfilePage
 
 worker/                     # Phase-2 AI backend — Cloudflare Worker (free, no Blaze); holds the key
   coach.mjs                 #   POST {input}→{text}: narrates the engine's numbers, never recomputes
   wrangler.jsonc            #   Worker config (name, model, allowed origins)
-scripts/genloop/            # offline generator that authors src/content/generated/**
+scripts/
+  genloop/                  # offline, multi-agent generator (writer/solver/verifier/formatter on
+                            #   @cursor/sdk) that self-verifies every problem — answer from
+                            #   probability.ts, Monte-Carlo + blind solver + validateStep + dedup
+                            #   gates — and authors src/content/generated/**
+  smoke-content.ts          # quick assembled-content sanity check (npm run smoke)
+e2e/                        # Playwright specs (smoke / course / lesson), run offline on the
+                            #   localStorage backend; unit tests (Vitest) sit beside each module
 ```
 
 `PRD.md` contains the full product requirements for all three phases.
