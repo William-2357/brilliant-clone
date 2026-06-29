@@ -25,9 +25,10 @@ rather than decoration.
   and resurfaces them on a per-concept **spaced-repetition** ladder (1d→3d→7d→14d,
   stored on `UserStats.review`) using Anki's spacing but **engine-graded in one attempt**
   (no retries, no self-report — so it can't be brute-forced or self-deceived), lessons
-  **fade their scaffolding** along a
-  **worked → completion → full** progression on a fresh lesson and then drop it after
-  the first clear (`LessonProgress.timesCleared`; worked breakdowns are derived in
+  **fade their scaffolding** — every lecture carries a fully **worked** example and the
+  **first calculation problem** of a fresh lesson is a **completion** (the learner's own
+  instance with the last line blanked), then it drops after the first clear
+  (`LessonProgress.timesCleared`; both breakdowns are kernel-derived in
   `src/lib/worked.ts`), a one-shot **pretest** captures a cold guess before any
   teaching on the first visit (`PretestCard` → `LessonProgress.preTest`, surfaced as an
   intuition-vs-reality reveal on the completion screen), and a memory-strength readout
@@ -120,8 +121,9 @@ src/
     explain.ts          # wrong-answer explanation payload (lessons + Problem of the Day)
     coachClient.ts      # AI transport: POSTs { kind, input } to the Worker (VITE_COACH_ENDPOINT)
     answer.ts           # parse typed answers (decimals/fractions) + per-unit hints
-    worked.ts           # derive a worked-example breakdown from a step's simConfig/answer
-                        #   (worked → completion → full scaffolding, Phase 3)
+    worked.ts           # per-kernel worked breakdowns (workedByKernel, keyed by kernel name)
+                        #   → lecture example (canonicalWorked) + first-problem completion
+                        #   (deriveWorked); recomputed from probability.ts (Phase 3)
     rng.ts              # seeded PRNG (mulberry32) + helpers for question generation
     simSpeed.ts         # global animation-speed multiplier (read inside rAF loops)
     storage.ts          # Backend / Auth / Progress / UserStats (+ ArcadeStats, ReviewState) interfaces
@@ -139,13 +141,13 @@ src/
                         #   PredictScale / WheelSegments (graded interactions), MasteryCurve,
                         #   ActivityHeatmap, ProblemOfTheDay, PracticeProblem (shared standalone
                         #   problem loop), SandboxSpotlight, WorkedExample / PretestCard (Phase 3
-                        #   worked→completion→full + pretest), SpeedControl, ThemeToggle,
+                        #   lecture worked example + first-problem completion + pretest), SpeedControl, ThemeToggle,
                         #   BlackjackTable (the Arcade game), AuthGuard, ProfileMenu, LessonIcon, ...
   hooks/              # useAuth, useProgress (streaks + daily activity + arcade + reviews
                       #   + pretest), useUnlockAll, useTheme, useCoachAI, useExplainAI
   store/
     progress.ts       # pure logic: cleared/mastery, unlock state, next-step, streak math,
-                      #   + scaffolding stage (supportLevelFor: worked→completion→full)
+                      #   + scaffolding stage (supportLevelFor: completion-or-full)
     review.ts         # pure spaced-repetition logic: schedule ladder + due concepts (Phase 3)
   pages/              # LoginPage, HomePage, CoursePage, UnitPage, LessonPage, SandboxPage,
                       #   ArcadePage, MixedPracticePage, ProblemPage, SimulationPage,
@@ -236,16 +238,21 @@ Rules in `firestore.rules` restrict each user to their own `users/{uid}/**`.
 - `currentStepId` enables exact-step resume.
 - 2 wrong answers in a row re-surfaces the *current* lesson's own concept material;
   the player also offers an inline "Review lecture" panel on problem steps.
-- **Fading scaffolding (worked → completion → full, FR-11.4).** A fresh, never-cleared
-  lesson fades support across its problems via backward fading: problem 1 shows a fully
-  **worked** canonical example (`WorkedExample` + `canonicalWorked`), problem 2 is a
-  **completion** problem (the learner's own instance with the final line blanked,
-  `deriveWorked`), and the rest are cold. Support drops once `timesCleared > 0` or on
-  replay (expertise reversal). Stage logic is the pure `supportLevelFor` in
-  `store/progress.ts`; worked numbers are **derived from the step's own `simConfig`/`answer`**
-  (`lib/worked.ts`), so they cover both templated and bank problems and never invent a
-  value — sims without a clean breakdown fall back to the guided hint. Mixed Practice is
-  always full.
+- **Fading scaffolding (lecture worked example → first-problem completion → cold, FR-11.4).**
+  A fresh, never-cleared lesson fades support in two places: **(1)** every lesson's lecture
+  (concept step) renders a fully **worked** canonical example for that topic as permanent
+  study material (`canonicalWorked` keyed by the concept sim via `canonicalStudy`), and
+  **(2)** the **first calculation problem** (first numeric/slider gradable step, skipping
+  holistic order/draw lead-ins) of a guided run is a **completion** — the learner's own
+  instance with the final line blanked (`deriveWorked` + `WorkedExample blankLast`). Every
+  other problem is cold. The completion drops once `timesCleared > 0` or on replay
+  (expertise reversal; the lecture example stays). Stage logic is the pure `supportLevelFor`
+  in `store/progress.ts`; worked numbers are **derived from the `probability.ts` kernel +
+  args threaded onto the step** (`kernel`/`kernelArgs`, carried from the bank in
+  `generateProblem`), formatted by `workedByKernel` in `lib/worked.ts` and recomputed from
+  `probability.ts` — so they cover templated and bank problems alike and never invent a
+  value (`content/worked.coverage.test.ts` proves kernel coverage + agreement + the
+  per-lesson sweep). Mixed Practice is always full.
 - **Pretesting (errorful generation, FR-11.6).** On the first-ever visit to a lesson,
   `LessonPlayer` shows one cold guess (`PretestCard`) on a numeric/slider problem *before*
   the concept step. It's **never graded** — stored on `LessonProgress.preTest` via
@@ -294,8 +301,11 @@ are registered in `simulations/index.ts`. When adding/maintaining one:
   `probability.test.ts`, `blackjack.test.ts` (a **Monte-Carlo cross-check** — simulated
   EVs converge to the engine's, and optimal actions reproduce textbook basic strategy),
   `coach.test.ts`, `store/progress.test.ts`, `store/review.test.ts`, `worked.test.ts`,
-  `content/validate.test.ts`, and `content/generated/{generated,kernels}.test.ts`
-  (recomputes every generated answer from `probability.ts`). New owned math should ship
+  `content/validate.test.ts`, `content/generated/{generated,kernels}.test.ts`
+  (recomputes every generated answer from `probability.ts`), and
+  `content/worked.coverage.test.ts` (1:1 worked-formatter↔kernel coverage + numeric
+  agreement, plus a per-lesson sweep that the lecture worked example and first-problem
+  completion are present). New owned math should ship
   with a test.
 - **E2E (Playwright) — `npm run test:e2e`.** Runs `e2e/*.spec.ts` against a fresh
   `npm run dev:test` server on port 53117. `--mode test` loads `.env.test`, which blanks

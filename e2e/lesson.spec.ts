@@ -1,4 +1,4 @@
-import { test, expect, signUp } from './fixtures';
+import { test, expect, signUp, openLesson } from './fixtures';
 import type { Page } from '@playwright/test';
 
 /**
@@ -35,12 +35,20 @@ async function resolveProblem(page: Page): Promise<void> {
 
 test.beforeEach(async ({ page }) => {
   await signUp(page);
-  await page.goto('/#/learn/l1-coin-flip');
-  await expect(page.locator('.player-step-title')).toBeVisible();
 });
 
 test.describe('Lesson player — predict then verify', () => {
+  test('first visit shows the never-graded pretest before any teaching', async ({ page }) => {
+    await page.goto('/#/learn/l1-coin-flip');
+    // Errorful generation (FR-11.6): one cold guess precedes the concept step on the
+    // first-ever visit. It's never graded — "I'm not sure" proceeds straight into the lesson.
+    await expect(page.locator('.pretest')).toBeVisible();
+    await page.getByRole('button', { name: /not sure/i }).click();
+    await expect(page.locator('.player-step-title')).toBeVisible();
+  });
+
   test('concept step mounts a live simulation', async ({ page }) => {
+    await openLesson(page, 'l1-coin-flip');
     const canvas = page.locator('.sim-canvas').first();
     await expect(canvas).toBeVisible();
     const box = await canvas.boundingBox();
@@ -50,12 +58,14 @@ test.describe('Lesson player — predict then verify', () => {
   });
 
   test('advancing from the concept reaches a gradable problem', async ({ page }) => {
+    await openLesson(page, 'l1-coin-flip');
     await page.locator('.explore-continue').click();
     await expect(page.locator('.step-tag.tag-problem')).toBeVisible();
     await expect(page.locator('.predict')).toBeVisible();
   });
 
   test('committing a prediction grades it and shows feedback', async ({ page }) => {
+    await openLesson(page, 'l1-coin-flip');
     await page.locator('.explore-continue').click();
     await expect(page.locator('.predict')).toBeVisible();
 
@@ -66,6 +76,7 @@ test.describe('Lesson player — predict then verify', () => {
   });
 
   test('a resolved problem reveals the answer and lets you continue', async ({ page }) => {
+    await openLesson(page, 'l1-coin-flip');
     await page.locator('.explore-continue').click();
     await expect(page.locator('.predict')).toBeVisible();
 

@@ -116,27 +116,21 @@ export function isCleared(p: LessonProgress | undefined): boolean {
 }
 
 /**
- * Scaffolding stage for a problem under the worked → completion → full progression
- * (FR-11.4, extended with backward fading). Only a *guided* lesson (a fresh,
- * never-cleared first attempt) gets support, and only when a worked example is
- * actually available for the relevant stage:
- *   ordinal 0 → 'worked'      (study a fully worked canonical example)
- *   ordinal 1 → 'completion'  (finish the learner's own instance, last line blanked)
- *   else      → 'full'        (cold)
- * Backward fading: the earliest problems carry the most support, which is removed
- * step by step as the learner moves through the lesson — and entirely once cleared.
+ * Scaffolding stage for a problem under the fading-scaffolding model (FR-11.4,
+ * revised). The fully worked canonical example now lives in the lesson's *lecture*
+ * (the concept step), so the only faded scaffold on a problem is the *completion*:
+ * the learner's own instance with the final line blanked. It is shown on the first
+ * *calculation* (numeric/slider) problem of a guided lesson — a fresh, never-cleared
+ * first attempt — when a worked breakdown is available. Every other problem is cold.
  */
-export type SupportLevel = 'worked' | 'completion' | 'full';
+export type SupportLevel = 'completion' | 'full';
 
 export function supportLevelFor(
   guided: boolean,
-  ordinal: number,
-  available: { worked: boolean; completion: boolean },
+  isFirstCalcProblem: boolean,
+  hasCompletion: boolean,
 ): SupportLevel {
-  if (!guided) return 'full';
-  if (ordinal === 0 && available.worked) return 'worked';
-  if (ordinal === 1 && available.completion) return 'completion';
-  return 'full';
+  return guided && isFirstCalcProblem && hasCompletion ? 'completion' : 'full';
 }
 
 /** Built lessons in a section (coming-soon lessons don't count toward gating). */

@@ -42,8 +42,9 @@ Lessons are grouped into **sections (units)** that **unlock as a unit**: clear e
 lesson in a unit and the next unit opens, but within an unlocked unit you can play its
 lessons in **any order**. Each lesson is one **concept** step (explore the simulation
 freely, with a short KaTeX lecture) followed by **four or five gradable problems**
-(`predict → run → feedback`) — the original eight showcase lessons and the Final Test
-have five; some later lessons have four.
+(`predict → run → feedback`) — the original eight showcase lessons have five; some
+later lessons have four. (The Final Test is a separate **10-question** capstone — see
+[Beyond the lessons](#beyond-the-lessons).)
 Every problem allows two attempts — first-try correct scores **green**, a second-try
 correct **yellow**, two misses **red**. A lesson **clears** once they're all green or
 yellow, and is **mastered** when they're all green; clearing every lesson in a unit is
@@ -57,8 +58,9 @@ template (`src/content/problemTemplates.ts`) that varies the numbers and objects
 recomputes the answer from `probability.ts` — and asks for either a probability /
 fraction or a **count** ("about how many of N…"). Retrying or replaying a lesson
 **cycles** to different questions instead of repeating the same ones. Beyond typing a
-number, some problems are a **slider** prediction, **drag-to-rank**, or
-**sketch-the-distribution**.
+number, some problems are a **slider** prediction, **drag-to-rank**,
+**sketch-the-distribution**, or **set-the-prize-wheel** (drag segment probabilities to
+hit a target expected value).
 
 ### Beyond the lessons
 
@@ -143,24 +145,28 @@ memory-strength readout — how many concepts are due now and how they're spread
 The **Problem of the Day** keeps its own keep-trying-then-reveal flow — it's a daily
 challenge, not a memory scheduler.
 
-### Fading scaffolding — worked → completion → full
+### Fading scaffolding — worked example in the lecture, then a completion, then cold
 
-A brand-new lesson eases you in and then **fades the help** problem by problem (backward
-fading — the last step is removed first, since by then you've seen it modeled most):
+A brand-new lesson eases you in and then **fades the help**:
 
-- **Problem 1 — worked example.** A fully solved, term-by-term example to study *before*
-  you solve your own (e.g. Expected Value: each payout × its probability, summed to the
-  total).
-- **Problem 2 — completion.** The same breakdown for *your* instance with the final line
-  blanked — the setup is done, you finish the last step.
-- **Problems 3+ — full.** Cold, no scaffold.
+- **Every lecture carries a fully worked example.** On the concept step, below the lecture
+  sections, a term-by-term canonical example for that topic is shown as permanent study
+  material (e.g. Expected Value: each payout × its probability, summed to the total).
+- **The first calculation problem is a completion.** The same breakdown for *your* own
+  generated instance with the final line blanked — the setup is done, you finish the last
+  step. (Lessons that lead with a holistic ranking/sketch keep that cold; the completion
+  lands on the first numeric/slider problem.)
+- **Every other problem is cold** — no scaffold.
 
 Once you've cleared the lesson once (`LessonProgress.timesCleared`) or you replay it, the
-support is gone entirely (you can always reopen the lecture) — beginners get the help,
-the competent aren't slowed by it (the *expertise-reversal* effect). The worked numbers
-are **derived from each problem's own data** (`src/lib/worked.ts`), never hand-typed, so
-they're always correct and cover both templated and pre-generated problems; topics
-without a clean breakdown fall back to a guided hint. Mixed Practice is always full.
+completion is gone too (you can always reopen the lecture) — beginners get the help, the
+competent aren't slowed by it (the *expertise-reversal* effect). Both the lecture example
+and the completion are **derived from the `probability.ts` kernel that produced the
+answer** (`src/lib/worked.ts`, `workedByKernel` keyed by kernel name), never hand-typed, so
+every worked number agrees with the value you're graded against and covers both templated
+and pre-generated problems. A test (`src/content/worked.coverage.test.ts`) proves the
+worked result equals the kernel for every kernel and every lesson. Mixed Practice is always
+full.
 
 ### Pretesting — guess before you learn
 
@@ -395,7 +401,8 @@ src/
     coachClient.ts          # server transport for both AI tasks (worker endpoint, by kind)
     rng.ts                  # seeded PRNG (mulberry32) + hashString for question generation
     answer.ts               # parse typed answers (decimals/fractions) + per-unit hints
-    worked.ts               # derive a worked-example breakdown from a step (Phase 3 scaffolding)
+    worked.ts               # per-kernel worked breakdowns (workedByKernel) → lecture example
+                            #   (canonicalWorked) + first-problem completion (deriveWorked)
     simSpeed.ts             # global animation-speed multiplier (read inside rAF loops)
     storage.ts              # Backend / Auth / Progress / UserStats (+ ArcadeStats) interfaces
     localBackend.ts         # localStorage adapter (fallback, demo-grade auth)
@@ -412,21 +419,22 @@ src/
                             #   ProblemOfTheDay, PracticeProblem (shared standalone problem:
                             #   'retry' = daily, 'single' = engine-graded one attempt for
                             #   Mixed Practice), WorkedExample /
-                            #   PretestCard (Phase 3 worked→completion→full + pretest),
+                            #   PretestCard (Phase 3: lecture worked example + first-problem
+                            #   completion + pretest),
                             #   SpeedControl, BlackjackTable (the Arcade game), ProfileMenu,
                             #   AuthGuard, ...
   hooks/                    # useAuth, useProgress (streaks + daily activity + arcade + reviews
                             #   + pretest), useUnlockAll, useTheme, useCoachAI, useExplainAI
   store/
     progress.ts             # mastery / clear / next-lesson / streak / course-stats +
-                            #   scaffolding stage (supportLevelFor: worked→completion→full), pure
+                            #   scaffolding stage (supportLevelFor: completion-or-full), pure
     review.ts               # spaced-repetition ladder + due-concept selection (pure, Phase 3)
   pages/                    # LoginPage, HomePage, CoursePage, UnitPage, LessonPage,
                             #   SandboxPage, MixedPracticePage, ArcadePage, ProblemPage,
                             #   SimulationPage, TestPage, ProfilePage
 
 worker/                     # Phase-2 AI backend — Cloudflare Worker (free, no Blaze); holds the key
-  coach.mjs                 #   POST {input}→{text}: narrates the engine's numbers, never recomputes
+  coach.mjs                 #   POST {kind, input}→{text}: narrates the engine's numbers, never recomputes
   wrangler.jsonc            #   Worker config (name, model, allowed origins)
 scripts/
   genloop/                  # offline, multi-agent generator (writer/solver/verifier/formatter on

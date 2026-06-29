@@ -100,6 +100,15 @@ export interface LessonStep {
   sliderStep?: number;
   /** wheel: fixed payouts; the learner sets each segment's probability to hit `answer` (target EV). */
   wheelPayouts?: number[];
+
+  /**
+   * The probability.ts kernel name + the exact numeric args that produced `answer`.
+   * Carried through from the generated bank (or annotated on a template) so the
+   * worked/completion breakdown can be derived term-by-term from the same function
+   * the engine grades against (see `lib/worked.ts`). Optional everywhere.
+   */
+  kernel?: string;
+  kernelArgs?: number[];
 }
 
 type LessonStatus = 'built' | 'coming-soon';

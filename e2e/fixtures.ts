@@ -41,3 +41,26 @@ export async function signUp(page: Page): Promise<void> {
   await page.waitForURL((url) => !url.hash.includes('/login'), { timeout: 15_000 });
   await expect(page.locator('.page-title')).toBeVisible();
 }
+
+/**
+ * On the first-ever visit to a lesson the player shows a one-question **pretest**
+ * (errorful generation) *before* the concept step — a never-graded cold guess.
+ * Tests that just want to reach the lesson dismiss it with "I'm not sure — teach me".
+ * Safe to call even when no pretest shows (e.g. a non-numeric first problem): it
+ * resolves as soon as either the pretest or the lesson's step title is on screen.
+ */
+export async function dismissPretest(page: Page): Promise<void> {
+  const skip = page.getByRole('button', { name: /not sure/i });
+  const stepTitle = page.locator('.player-step-title');
+  await expect(skip.or(stepTitle).first()).toBeVisible({ timeout: 15_000 });
+  if (await skip.isVisible()) {
+    await skip.click();
+  }
+  await expect(stepTitle).toBeVisible({ timeout: 15_000 });
+}
+
+/** Navigate straight to a lesson and land on its first step (past any pretest). */
+export async function openLesson(page: Page, lessonId: string): Promise<void> {
+  await page.goto(`/#/learn/${lessonId}`);
+  await dismissPretest(page);
+}

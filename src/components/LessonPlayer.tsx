@@ -122,11 +122,20 @@ export default function LessonPlayer({ lesson }: Props) {
     [lesson.id, baseStep, seed, attempt, retry],
   );
 
-  // Fading scaffolding (FR-11.4): a never-cleared lesson on its first attempt is
-  // 'guided' (lecture auto-opened + a worked example on the first problem); once it
-  // has been cleared at least once — or is being replayed — support fades and
-  // problems are presented cold. Mixed Practice is always faded (no lecture there).
-  const firstProblemId = useMemo(() => lesson.steps.find((s) => s.type === 'problem')?.id, [lesson]);
+  // Fading scaffolding (FR-11.4, revised): a never-cleared lesson on its first
+  // attempt is 'guided' — the lecture carries a fully worked example and the first
+  // calculation problem is a completion (own instance, last line blanked). Once the
+  // lesson has been cleared — or is being replayed — support fades and every problem
+  // is cold. Mixed Practice is always faded (no lecture there). The first calculation
+  // problem is the first numeric/slider gradable step (skipping order/draw lead-ins).
+  const firstCalcId = useMemo(
+    () =>
+      gradableSteps(lesson).find((p) => {
+        const it = p.interaction ?? 'numeric';
+        return it === 'numeric' || it === 'slider';
+      })?.id,
+    [lesson],
+  );
   const supportProgress = progress.get(lesson.id);
   const guided =
     (supportProgress?.timesCleared ?? 0) === 0 &&
@@ -435,18 +444,15 @@ export default function LessonPlayer({ lesson }: Props) {
 
   const stepLabel = step.type === 'concept' ? 'Concept' : 'Problem';
   const interaction = step.interaction ?? 'numeric';
-  const isFirstProblem = step.type === 'problem' && step.id === firstProblemId;
 
-  // Worked → completion → full fading (FR-11.4): a fixed worked example to study on
-  // the first problem, a completion problem (own instance, last line blanked) on the
-  // second, then cold. `ordinal` is the problem's place among the gradable steps.
-  const ordinal = problems.findIndex((p) => p.id === step.id);
-  const canonical = step.type === 'problem' ? canonicalWorked(step.simulation) : null;
+  // Fading scaffolding (FR-11.4, revised): the lecture carries a fully worked
+  // canonical example (rendered on the concept step); the first calculation problem
+  // of a guided lesson is a completion (the learner's own instance, last line
+  // blanked). Everything else is cold.
+  const conceptWorked = step.type === 'concept' ? canonicalWorked(step.simulation) : null;
   const derivedWorked = step.type === 'problem' ? deriveWorked(step) : null;
-  const supportLevel = supportLevelFor(guided, ordinal, {
-    worked: !!canonical,
-    completion: !!derivedWorked,
-  });
+  const isFirstCalc = step.type === 'problem' && step.id === firstCalcId;
+  const supportLevel = supportLevelFor(guided, isFirstCalc, !!derivedWorked);
   const showTruth = correct || isFinalMiss;
   let truthLine: string | undefined;
   if (showTruth) {
@@ -530,6 +536,11 @@ export default function LessonPlayer({ lesson }: Props) {
             <div className="concept-lecture">
               <div className="lecture-panel">
                 <LectureContent step={step} />
+                {conceptWorked && (
+                  <div className="lecture-worked">
+                    <WorkedExample example={conceptWorked} />
+                  </div>
+                )}
               </div>
             </div>
             <div className="concept-sim">
@@ -593,11 +604,11 @@ export default function LessonPlayer({ lesson }: Props) {
                     : 'One try left — think it through and commit your answer; the simulation reveals the result this time.'}
                 </p>
 
-                {supportLevel === 'worked' && canonical && (
+                {supportLevel === 'completion' && derivedWorked && (
                   <div className="scaffold-worked">
-                    <WorkedExample example={canonical} />
+                    <WorkedExample example={derivedWorked} blankLast />
                     <p className="scaffold-text">
-                      Study the example above, then solve your own below.
+                      The setup is done — work out the final value and enter it below.
                     </p>
                     {conceptStep && (
                       <button
@@ -605,32 +616,9 @@ export default function LessonPlayer({ lesson }: Props) {
                         className="scaffold-link"
                         onClick={() => setShowLecture(true)}
                       >
-                        Open the full lecture →
+                        Review the lecture →
                       </button>
                     )}
-                  </div>
-                )}
-
-                {supportLevel === 'completion' && derivedWorked && (
-                  <div className="scaffold-worked">
-                    <WorkedExample example={derivedWorked} blankLast />
-                    <p className="scaffold-text">
-                      The setup is done — work out the final value and enter it below.
-                    </p>
-                  </div>
-                )}
-
-                {guided && isFirstProblem && supportLevel === 'full' && conceptStep && (
-                  <div className="scaffold-hint" role="note">
-                    <span className="scaffold-tag">Guided example</span>
-                    <p className="scaffold-text">{conceptStep.body}</p>
-                    <button
-                      type="button"
-                      className="scaffold-link"
-                      onClick={() => setShowLecture(true)}
-                    >
-                      Open the full lecture →
-                    </button>
                   </div>
                 )}
 

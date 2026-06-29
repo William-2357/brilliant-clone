@@ -3731,25 +3731,15 @@ button.nav-group-head:hover {
   vertical-align: middle;
 }
 
-/* Fading scaffolding — guided worked-example hint in the lesson player */
-.scaffold-hint {
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--accent);
-  background: var(--surface-2);
-  border-radius: 10px;
-  padding: 10px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+/* Worked example embedded in the concept lecture — permanent study material that
+   sits below the lecture sections, set off by a divider. */
+.lecture-worked {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
 }
-.scaffold-tag {
-  font-family: var(--font-display);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--accent-strong);
-}
+
+/* Fading scaffolding — the completion card on the first calculation problem. */
 .scaffold-text {
   margin: 0;
   font-size: 13.5px;
@@ -3802,29 +3792,36 @@ button.nav-group-head:hover {
 .worked-completion .worked-tag {
   color: var(--warn);
 }
+/* The concrete scenario the worked example solves (lecture study card only). */
+.worked-question {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-h);
+  line-height: 1.5;
+}
 .worked-intro {
   margin: 0;
-  font-size: 13.5px;
-  color: var(--text);
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
 }
-.worked-lines {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+/* The calculation: each step on its own line, "label = value" grouped together. */
+.worked-calc {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
 }
 .worked-line {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  align-items: center;
-  gap: 10px;
-  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 14px;
 }
 .worked-line-label {
   color: var(--text-h);
-  font-size: 14px;
 }
 .worked-line-eq {
   color: var(--muted);
@@ -3832,34 +3829,33 @@ button.nav-group-head:hover {
 .worked-line-value {
   font-weight: 600;
   color: var(--text-h);
-  min-width: 56px;
-  text-align: right;
 }
-.worked-line-value.is-blank,
-.worked-result-value.is-blank {
+.worked-line-value.is-blank {
   color: var(--warn);
   font-weight: 700;
 }
-.worked-result {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  border-top: 1px dashed var(--border);
+/* The total/answer row of a multi-step computation. */
+.worked-line--result {
+  margin-top: 4px;
   padding-top: 8px;
+  border-top: 1px dashed var(--border);
 }
-.worked-result-label {
-  font-size: 12px;
+.worked-line--result .worked-line-label {
+  font-weight: 700;
+}
+.worked-result-value {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--accent-strong);
+}
+/* Result label under a single-step computation (no redundant answer row). */
+.worked-caption {
+  font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--muted);
-}
-.worked-result-value {
-  font-family: var(--font-display);
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--accent-strong);
 }
 
 /* Pretesting card — a cold guess before the lesson teaches anything */

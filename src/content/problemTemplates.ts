@@ -1274,7 +1274,9 @@ export function generateProblem(
   const bank = generatedBySlot[base.id];
   if (bank?.length) {
     const g = bank[makeRng(seedFor).int(0, bank.length - 1)];
-    return { ...g.step, id: base.id };
+    // Carry the kernel + exact args onto the visible step so the worked/completion
+    // breakdown can be derived term-by-term from probability.ts (see lib/worked.ts).
+    return { ...g.step, id: base.id, kernel: g.kernel, kernelArgs: g.args };
   }
   const variants = problemTemplates[lessonId]?.filter((x) => x.id === base.id);
   if (!variants?.length) return base;

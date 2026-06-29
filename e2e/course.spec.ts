@@ -1,4 +1,4 @@
-import { test, expect, signUp } from './fixtures';
+import { test, expect, signUp, dismissPretest } from './fixtures';
 
 test.beforeEach(async ({ page }) => {
   await signUp(page);
@@ -31,9 +31,10 @@ test.describe('Course catalog', () => {
     await page.locator('.unit-grid .unit-card').first().click();
     await page.waitForURL(/#\/learn\/section\/s1-foundations/);
 
-    // First lesson in the unit → the lesson player.
+    // First lesson in the unit → the lesson player (past the first-visit pretest).
     await page.locator('.lesson-cards .lcard').first().click();
     await page.waitForURL(/#\/learn\/l1-coin-flip/);
+    await dismissPretest(page);
     await expect(page.locator('.player-step-title')).toBeVisible();
   });
 });

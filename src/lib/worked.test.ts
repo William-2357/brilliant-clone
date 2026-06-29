@@ -62,7 +62,7 @@ describe('deriveWorked — long-run count', () => {
   });
 });
 
-describe('canonicalWorked — fixed study example', () => {
+describe('canonicalWorked — lecture study example', () => {
   it('gives a multi-line EV example for the expectedValue sim', () => {
     const w = canonicalWorked('expectedValue');
     expect(w).not.toBeNull();
@@ -70,8 +70,16 @@ describe('canonicalWorked — fixed study example', () => {
     expect(w!.result).toBe('$4');
   });
 
-  it('is null for sims without a modeled worked example', () => {
-    expect(canonicalWorked('galtonBoard')).toBeNull();
+  it('derives a worked example for a concept sim with a canonical study entry', () => {
+    // galtonBoard now has a canonical lecture example (central-bins fraction).
+    const w = canonicalWorked('galtonBoard');
+    expect(w).not.toBeNull();
+    expect(w!.lines.length).toBeGreaterThan(0);
+  });
+
+  it('is null for sims without a canonical study entry, and for undefined', () => {
+    // blackjackEdge is the Arcade sim — never a lesson concept step.
+    expect(canonicalWorked('blackjackEdge')).toBeNull();
     expect(canonicalWorked(undefined)).toBeNull();
   });
 });

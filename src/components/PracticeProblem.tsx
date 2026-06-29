@@ -63,8 +63,9 @@ function sliderMid(step: LessonStep): string {
  * interaction type (numeric / slider / order / draw / wheel). It renders the
  * problem, reveals the truth, and reports the outcome via `onResolved`; it owns no
  * persistence, navigation, or celebration. Reused by the Problem of the Day
- * ('retry' mode — the app grades) and Mixed Practice ('self' mode — Anki-style
- * self-rating). The answer always comes from `step.answer` / `step.answerOrder` /
+ * ('retry' mode — a wrong answer can be retried) and Mixed Practice ('single' mode
+ * — one engine-graded shot: no retries, no self-report). The deterministic engine
+ * always grades the committed answer, which comes from `step.answer` / `step.answerOrder` /
  * `step.answerShape` (computed upstream by probability.ts) — never derived here.
  *
  * Callers must give each problem a stable identity (a memoized step, or a `key`
