@@ -12,7 +12,7 @@
 learner **commit to an answer before seeing the right one**, then run a **simulation that
 grades the guess** — turning the decorative animation into the answer key. In competition
 and high-school math I did in high school, probability was the least intuitive topic to learn from a textbook,
-precisely because it is so abstract. Using hands-on simulations closes that gap between gut and
+precisely because it is so abstract. Using hands-on simulations closes that gap between intuition and
 math.
 
 **In scope:** the pedagogy of predict-then-verify and what flows from it (withholding the
